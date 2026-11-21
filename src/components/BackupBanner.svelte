@@ -2,7 +2,8 @@
   import { backupReminder, exportBackup, snoozeBackup } from '../lib/backup';
   import { showToast, store } from '../lib/store.svelte';
 
-  const days = $derived(store.plan ? backupReminder(store.plan) : null);
+  // Previews inside Claude can't download files, so the reminder would only nag there.
+  const days = $derived(store.plan && !import.meta.env.VITE_PREVIEW ? backupReminder(store.plan) : null);
 </script>
 
 {#if days != null && store.plan}

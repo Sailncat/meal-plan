@@ -2,10 +2,17 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { fileURLToPath } from 'node:url';
 
-export default defineConfig({
+// `vite build --mode preview` makes a build for a private claude.ai preview page.
+export default defineConfig(({ mode }) => ({
   // Relative paths, so the same build works on GitHub Pages (under /meal-plan/) and in previews.
   base: './',
+  resolve: {
+    alias:
+      mode === 'preview' ? [{ find: /^\.\/fonts$/, replacement: fileURLToPath(new URL('./src/fonts.preview.ts', import.meta.url)) }] : [],
+  },
+  build: { outDir: mode === 'preview' ? 'dist-preview' : 'dist' },
   plugins: [
     svelte(),
     VitePWA({
@@ -38,4 +45,4 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
   },
-});
+}));

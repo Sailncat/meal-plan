@@ -1,17 +1,12 @@
 import { mount } from 'svelte';
-import '@fontsource/barlow/400.css';
-import '@fontsource/barlow/500.css';
-import '@fontsource/barlow/600.css';
-import '@fontsource/barlow/700.css';
-import '@fontsource/barlow-condensed/600.css';
-import '@fontsource/barlow-condensed/700.css';
+import './fonts';
 import './app.css';
 import App from './App.svelte';
 
 const app = mount(App, { target: document.getElementById('app')! });
 
-// Offline support. Some preview hosts don't allow service workers; the app works without one.
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// Offline support. Preview builds skip it: claude.ai previews don't allow service workers.
+if ('serviceWorker' in navigator && import.meta.env.PROD && !import.meta.env.VITE_PREVIEW) {
   import('virtual:pwa-register')
     .then(({ registerSW }) => registerSW({ immediate: true }))
     .catch(() => {});

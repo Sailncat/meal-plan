@@ -115,6 +115,9 @@
     <input type="file" accept=".json,application/json" hidden bind:this={fileInput} onchange={restore} />
   </div>
   <p class="note">Loading a file replaces the plan on this device. Files from the old Claude meal plan work too.</p>
+  {#if import.meta.env.VITE_PREVIEW}
+    <p class="note preview">This preview runs inside Claude, which blocks downloads, so saving a backup file does nothing here. It works on the real site.</p>
+  {/if}
 </div>
 
 <h2 class="bar">Week</h2>
@@ -125,7 +128,7 @@
 
 <h2 class="bar">About</h2>
 <div class="panel pad about">
-  <p>Meal plan · test build</p>
+  <p>Meal plan · test build{import.meta.env.VITE_PREVIEW ? ' (preview)' : ''}</p>
   <p class="note">
     {#if store.storage === 'memory'}
       This browser won't let the app save, so changes are lost when you close it. Save a backup file before you go.
@@ -169,6 +172,9 @@
   .last {
     font-weight: 600;
     margin: 0 0 0.6rem;
+  }
+  .preview {
+    color: var(--under);
   }
   .about p:first-child {
     margin: 0;
