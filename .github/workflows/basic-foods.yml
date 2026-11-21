@@ -1,0 +1,32 @@
+name: Build basic foods data
+
+# Run by hand from the Actions tab. Downloads USDA SR Legacy and commits public/data/basic-foods.json,
+# which the app then ships so basic-food search works offline. The data is final (April 2018), so this
+# only needs running again if the build script changes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Build
+        run: node scripts/basic-foods/build.mjs --out public/data/basic-foods.json
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/basic-foods.json
+          if git diff --cached --quiet; then
+            echo "No change"
+          else
+            git commit -m "Update basic foods data (USDA SR Legacy)"
+            git push
+          fi
