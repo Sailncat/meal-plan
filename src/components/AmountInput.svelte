@@ -16,13 +16,15 @@
   let { food, amount, measure, label, onchange }: Props = $props();
 
   const sys = $derived(system());
-  const m = $derived(measureOf(food, measure));
+  const m = $derived(measureOf(food, measure, sys));
   // Base amounts (always metric) are shown in ounces or fluid ounces in imperial.
   const shown = $derived(m || amount == null ? amount : Math.round(toShown(food.unit, amount, sys) * 100) / 100);
   const n = $derived(shown ?? 2);
   const options = $derived([
     { value: '', label: baseUnitLabel(food.unit, sys, n) },
-    ...measuresOf(food).map((x) => ({ value: x.id, label: plural(x.name, n) })),
+    ...measuresOf(food, sys).map((x) => ({ value: x.id, label: plural(x.name, n) })),
+    // An amount saved in the other system's cup keeps it, shown by its full name.
+    ...(m && !measuresOf(food, sys).some((x) => x.id === m.id) ? [{ value: m.id, label: plural(m.name, n) }] : []),
   ]);
 </script>
 

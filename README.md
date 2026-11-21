@@ -8,7 +8,7 @@ Plan your week of meals, macros and meal prep. A web app that works offline and 
 - **Recipes:** build recipes from your foods; servings split a batch into meals.
 - **Foods:** label values per 100 g, plus ways to count each food (1 egg = 60 g, 1 slice = 35 g); mark supplements to tick off each day.
 - **Nutrients:** the week's vitamins, minerals and macros against goals for your age, sex and life stage (EU EFSA or US tables), with warnings above safe upper limits.
-- **Me:** weight log and chart, profile, and daily targets worked out from them (Mifflin-St Jeor, 1.6–2.2 g protein per kg), each one overridable. Settings sits inside: meals, units (metric or UK imperial, kcal or kJ), backup files.
+- **Me:** weight log and chart, profile, and daily targets worked out from them (Mifflin-St Jeor, 1.6–2.2 g protein per kg), each one overridable. Settings sits inside: meals, units (metric or US, kcal or kJ), backup files.
 
 Backups are plain JSON files. The app also reads the plan from the original Claude meal plan artifact.
 

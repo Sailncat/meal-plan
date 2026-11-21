@@ -4,7 +4,7 @@
   import { NUTRIENTS } from '../lib/nutrients';
   import { fmt0, fmt1, uid } from '../lib/num';
   import { baseAmount, measureOf, measuresOf, plural } from '../lib/units';
-  import { E, EU, amountOf, fromE } from '../lib/display';
+  import { E, EU, amountOf, fromE, system } from '../lib/display';
   import { store, undoable } from '../lib/store.svelte';
   import NumInput from './NumInput.svelte';
 
@@ -136,15 +136,15 @@
           <button class="btn small" onclick={addMeasure}>+ Add a way to count it</button>
           <span class="note">
             Like 1 egg = 60 g or 1 slice = 35 g.{#if food.unit === 'ml'}
-              tsp, tbsp and cup (5, 15 and 250 ml) are always there for liquids.{/if}
+              tsp, tbsp and cup ({system() === 'imperial' ? '5 ml, 15 ml and the 8 fl oz US cup' : '5, 15 and 250 ml'}) are always there for liquids.{/if}
           </span>
         </div>
-        {#if measuresOf(food).length}
+        {#if measuresOf(food, system()).length}
           <label class="countby">
             <span class="label">New amounts start in</span>
             <select class="field" value={startMeasure ?? ''} onchange={(e) => (food.countBy = e.currentTarget.value || null)}>
               <option value="">{plural(food.unit, 2)}{byWhat}</option>
-              {#each measuresOf(food) as m (m.id)}
+              {#each measuresOf(food, system()) as m (m.id)}
                 <option value={m.id}>{plural(m.name || 'unnamed', 2)}</option>
               {/each}
             </select>

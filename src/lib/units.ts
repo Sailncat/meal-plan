@@ -5,31 +5,43 @@ import type { Food, Measure, Settings } from './types';
 import { num } from './num';
 
 export const G_PER_OZ = 28.349523125;
-/** UK fluid ounce. */
-export const ML_PER_FL_OZ = 28.4130625;
+/** US fluid ounce. */
+export const ML_PER_FL_OZ = 29.5735295625;
 export const KJ_PER_KCAL = 4.184;
 export const KG_PER_LB = 0.45359237;
 export const CM_PER_IN = 2.54;
 
-/** Kitchen measures every liquid gets for free (metric spoons and the 250 ml cup used in UK and Irish recipes). */
-export const BUILTIN_VOLUME: readonly Measure[] = [
+// Kitchen measures every liquid gets for free: spoons, plus the cup of the chosen system
+// (the 250 ml metric cup, or the 8 fl oz US cup in US mode).
+const SPOONS: readonly Measure[] = [
   { id: '@tsp', name: 'tsp', size: 5 },
   { id: '@tbsp', name: 'tbsp', size: 15 },
-  { id: '@cup', name: 'cup', size: 250 },
 ];
+const METRIC_CUP: Measure = { id: '@cup', name: 'cup', size: 250 };
+const US_CUP: Measure = { id: '@uscup', name: 'cup', size: 8 * 29.5735295625 };
+/** Cups by the name they go by outside their own system, so an amount saved in the other cup stays clear. */
+const OTHER_CUP_NAMES: Record<string, string> = { '@cup': 'metric cup', '@uscup': 'US cup' };
+
+function builtinsFor(system: Settings['system']): Measure[] {
+  return [...SPOONS, system === 'imperial' ? US_CUP : METRIC_CUP];
+}
 
 export const DEFAULT_SETTINGS: Settings = { system: 'metric', energy: 'kcal' };
 
-/** The food's own measures, plus tsp, tbsp and cup for anything measured in ml. */
-export function measuresOf(food: Food): Measure[] {
+/** The food's own measures, plus tsp, tbsp and the system's cup for anything measured in ml. */
+export function measuresOf(food: Food, system: Settings['system'] = 'metric'): Measure[] {
   if (food.unit !== 'ml') return food.measures;
   const taken = new Set(food.measures.map((m) => m.name.trim().toLowerCase()));
-  return [...food.measures, ...BUILTIN_VOLUME.filter((b) => !taken.has(b.name))];
+  return [...food.measures, ...builtinsFor(system).filter((b) => !taken.has(b.name))];
 }
 
-export function measureOf(food: Food | undefined, id: string | null | undefined): Measure | undefined {
+/** Finds a measure by id. Either cup is found whichever system is on, so saved amounts never change size. */
+export function measureOf(food: Food | undefined, id: string | null | undefined, system: Settings['system'] = 'metric'): Measure | undefined {
   if (!food || !id) return undefined;
-  return measuresOf(food).find((m) => m.id === id);
+  const own = measuresOf(food, system).find((m) => m.id === id);
+  if (own || food.unit !== 'ml') return own;
+  const cup = [METRIC_CUP, US_CUP].find((c) => c.id === id);
+  return cup ? { ...cup, name: OTHER_CUP_NAMES[cup.id] } : undefined;
 }
 
 /** An amount in the food's base unit (g, ml or its counting word). */
@@ -109,7 +121,7 @@ export function fmtQty(n: number): string {
 /** "3 eggs", "250 g", "8.8 oz", "1½ slices". */
 export function amountText(food: Food, amount: number | null, measureId: string | null, system: Settings['system']): string {
   if (amount == null) return '';
-  const m = measureOf(food, measureId);
+  const m = measureOf(food, measureId, system);
   if (m) return `${fmtQty(amount)} ${plural(m.name, amount)}`;
   const shown = toShown(food.unit, amount, system);
   const imperialMass = system === 'imperial' && (food.unit === 'g' || food.unit === 'ml');
@@ -129,12 +141,9 @@ export const weightUnit = (system: Settings['system']) => (system === 'imperial'
 export const kgToShown = (kg: number, system: Settings['system']) => (system === 'imperial' ? kg / KG_PER_LB : kg);
 export const shownToKg = (v: number, system: Settings['system']) => (system === 'imperial' ? v * KG_PER_LB : v);
 
-/** "80.0 kg", or "176.4 lb (12 st 8)" in imperial, since UK scales read in stones. */
+/** "80.0 kg", or "176.4 lb" in US units. */
 export function weightText(kg: number, system: Settings['system']): string {
-  if (system !== 'imperial') return `${kg.toFixed(1)} kg`;
-  const lb = kg / KG_PER_LB;
-  const st = Math.floor(Math.round(lb) / 14);
-  return `${lb.toFixed(1)} lb (${st} st ${Math.round(lb) - st * 14})`;
+  return system === 'imperial' ? `${(kg / KG_PER_LB).toFixed(1)} lb` : `${kg.toFixed(1)} kg`;
 }
 
 /** 183 cm → 6 ft 0 in. */

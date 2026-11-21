@@ -83,7 +83,7 @@ describe('words', () => {
     expect(amountText(egg, 3, 'm-egg', 'metric')).toBe('3 eggs');
     expect(amountText(egg, 200, null, 'metric')).toBe('200 g');
     expect(amountText(egg, 200, null, 'imperial')).toBe('7.1 oz');
-    expect(amountText(milk, 250, null, 'imperial')).toBe('8.8 fl oz');
+    expect(amountText(milk, 250, null, 'imperial')).toBe('8.5 fl oz');
     expect(amountText(tablet, 2, null, 'metric')).toBe('2 tablets');
     expect(amountText(tablet, 1, null, 'imperial')).toBe('1 tablet');
   });
@@ -94,8 +94,19 @@ describe('metric and imperial', () => {
     expect(toShown('g', 28.349523125, 'imperial')).toBeCloseTo(1, 10);
     expect(fromShown('g', toShown('g', 700, 'imperial'), 'imperial')).toBeCloseTo(700, 10);
   });
-  it('uses UK fluid ounces', () => {
-    expect(toShown('ml', 568.26125, 'imperial')).toBeCloseTo(20, 10); // a UK pint is 20 fl oz
+  it('uses US fluid ounces', () => {
+    expect(toShown('ml', 236.5882365, 'imperial')).toBeCloseTo(8, 10); // a US cup is 8 fl oz
+  });
+  it('offers the US cup in US mode and the metric cup otherwise', () => {
+    expect(measuresOf(milk, 'imperial').find((m) => m.name === 'cup')!.size).toBeCloseTo(236.588, 3);
+    expect(measuresOf(milk, 'metric').find((m) => m.name === 'cup')!.size).toBe(250);
+  });
+  it('keeps an amount saved in either cup the same size whichever mode is on', () => {
+    expect(baseAmount(milk, 1, '@cup')).toBe(250);
+    expect(baseAmount(milk, 1, '@uscup')).toBeCloseTo(236.588, 3);
+    expect(amountText(milk, 2, '@cup', 'imperial')).toBe('2 metric cups');
+    expect(amountText(milk, 2, '@uscup', 'metric')).toBe('2 US cups');
+    expect(amountText(milk, 2, '@uscup', 'imperial')).toBe('2 cups');
   });
   it('leaves metric and counting words alone', () => {
     expect(toShown('g', 100, 'metric')).toBe(100);
@@ -138,9 +149,9 @@ describe('loading plans with units', () => {
 
 describe('body weight and height', async () => {
   const { weightText, cmToFtIn, ftInToCm, kgToShown, shownToKg } = await import('../src/lib/units');
-  it('shows kg, or lb with stones in imperial', () => {
+  it('shows kg, or lb in US units', () => {
     expect(weightText(80, 'metric')).toBe('80.0 kg');
-    expect(weightText(80, 'imperial')).toBe('176.4 lb (12 st 8)');
+    expect(weightText(80, 'imperial')).toBe('176.4 lb');
     expect(shownToKg(kgToShown(80, 'imperial'), 'imperial')).toBeCloseTo(80, 10);
   });
   it('converts height', () => {

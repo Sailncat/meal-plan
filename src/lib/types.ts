@@ -125,7 +125,7 @@ export interface Meta {
 }
 
 export interface Settings {
-  /** Imperial uses UK fluid ounces (28.41 ml). */
+  /** "imperial" means US customary units: oz, US fl oz (29.57 ml), US cups, lb, ft and in. */
   system: 'metric' | 'imperial';
   energy: 'kcal' | 'kJ';
 }

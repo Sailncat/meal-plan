@@ -97,7 +97,7 @@
         Metric<small>g · ml</small>
       </button>
       <button role="radio" aria-checked={plan.settings.system === 'imperial'} onclick={() => (plan.settings.system = 'imperial')}>
-        Imperial (UK)<small>oz · fl oz</small>
+        US<small>oz · fl oz · lb</small>
       </button>
     </div>
   </div>
