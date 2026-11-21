@@ -1,0 +1,32 @@
+{
+  "ingredients": [
+    {"id": "oats", "name": "Oats (dry)", "unit": "g", "per": 100, "kcal": 375, "protein": 13, "note": "", "n": {"carbs": 66, "fat": 6.9, "fibre": 10.6, "fe": 4.3, "mg": 138}},
+    {"id": "milk", "name": "Milk 2%", "unit": "ml", "per": 100, "kcal": 50, "protein": 3.4, "note": "", "n": {"carbs": 4.8, "fat": 2, "ca": 120, "vitD": 0.05}},
+    {"id": "banana", "name": "Banana, peeled", "unit": "g", "per": 100, "kcal": 89, "protein": 1.1, "note": "", "n": {"carbs": 22.8, "k": 358, "vitC": 8.7}},
+    {"id": "chicken", "name": "Chicken breast", "unit": "g", "per": 100, "kcal": 110, "protein": 23, "note": "", "n": {"fat": 2, "b3": 9.6}},
+    {"id": "rice", "name": "Rice (dry)", "unit": "g", "per": 100, "kcal": 350, "protein": 7, "note": "", "n": {"carbs": 79}},
+    {"id": "oil", "name": "Olive oil", "unit": "g", "per": 100, "kcal": 884, "protein": 0, "note": "", "n": {"fat": 100, "vitE": 14.4}},
+    {"id": "whey", "name": "Whey protein", "unit": "g", "per": 30, "kcal": 110, "protein": 24, "note": "per 30 g scoop", "n": {"carbs": 2, "ca": 150}},
+    {"id": "cottage", "name": "Cottage cheese", "unit": "g", "per": 100, "kcal": 97, "protein": 11, "note": "", "n": {"fat": 5, "salt": 0.75}},
+    {"id": "egg", "name": "Egg, medium", "unit": "egg", "per": 1, "kcal": 72, "protein": 6.3, "note": "", "n": {"fat": 4.8, "vitD": 1}},
+    {"id": "beef", "name": "Ground beef", "unit": "g", "per": 100, "kcal": 226, "protein": 19.3, "note": "", "n": {"fat": 16.5, "zn": 4.5}},
+    {"id": "wrap", "name": "Tortilla wrap", "unit": "wrap", "per": 1, "kcal": 192, "protein": 6.1, "note": "", "n": {"carbs": 32}},
+    {"id": "vitd", "name": "Supplement: Vitamin D3", "unit": "tablet", "per": 1, "kcal": 0, "protein": 0, "note": "", "n": {"vitD": 50}}
+  ],
+  "recipes": [
+    {"id": "oatmeal", "name": "Oatmeal with bananas", "servings": 1, "notes": "", "lines": [{"ing": "oats", "amount": 90}, {"ing": "milk", "amount": 300}, {"ing": "banana", "amount": 120}]},
+    {"id": "chicken_rice", "name": "Chicken with rice", "servings": 1, "notes": "", "lines": [{"ing": "chicken", "amount": 400}, {"ing": "oil", "amount": 10}, {"ing": "rice", "amount": 150}]},
+    {"id": "beef_wraps", "name": "Beef wraps", "servings": 2, "notes": "", "lines": [{"ing": "beef", "amount": 500}, {"ing": "cottage", "amount": 200}, {"ing": "wrap", "amount": 6}, {"ing": "", "amount": ""}]}
+  ],
+  "shake": {"lines": [{"ing": "whey", "amount": 30}, {"ing": "milk", "amount": 250}]},
+  "targets": {"kcalLow": 2100, "kcalHigh": 2400, "proteinLow": 150, "proteinHigh": 200},
+  "week": [
+    {"day": "Monday", "breakfast": {"recipe": "oatmeal"}, "dinner": {"recipe": "chicken_rice"}, "shakes": 2, "snacks": [{"ref": "i:cottage", "amount": 200}, {"ref": null, "amount": ""}, {"ref": null, "amount": ""}, {"ref": null, "amount": ""}], "supps": ["vitd"]},
+    {"day": "Tuesday", "breakfast": {"recipe": "oatmeal"}, "dinner": {"recipe": "beef_wraps"}, "shakes": 1, "snacks": [{"ref": "r:beef_wraps", "amount": 0.5}, {"ref": "i:egg", "amount": 2}, {"ref": null, "amount": ""}, {"ref": null, "amount": ""}], "supps": []},
+    {"day": "Wednesday", "breakfast": {"recipe": null, "shake": true}, "dinner": {"recipe": "chicken_rice", "shake": true}, "snacks": [], "supps": ["vitd"]},
+    {"day": "Thursday", "breakfast": {"recipe": "oatmeal"}, "dinner": {"recipe": "chicken_rice"}, "shakes": 0, "snacks": [{"ref": "i:banana", "amount": ""}], "supps": ["vitd", "missing-id"]},
+    {"day": "Friday", "breakfast": {"recipe": "oatmeal"}, "dinner": {"recipe": "deleted-recipe"}, "shakes": 2, "snacks": [], "supps": []},
+    {"day": "Saturday", "breakfast": {"recipe": "oatmeal"}, "dinner": {"recipe": "beef_wraps"}, "shakes": 2, "snacks": [], "supps": ["vitd"]},
+    {"day": "Sunday", "breakfast": {"recipe": "oatmeal"}, "dinner": {"recipe": "chicken_rice"}, "shakes": 2, "snacks": [], "supps": ["vitd"]}
+  ]
+}
