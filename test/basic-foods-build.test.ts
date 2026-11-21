@@ -49,14 +49,18 @@ describe('basic foods build', () => {
   it('keeps up to five portions in order, skips weight units, divides by amount', () => {
     const egg = byName('Egg, whole, raw, fresh');
     expect(egg[4]).toEqual([
-      ['cup (4.86 large eggs)', 243],
+      ['cup', 243],
       ['large', 50],
       ['extra large', 56],
       ['jumbo', 63],
       ['medium', 44],
     ]);
     const banana = byName('Bananas, raw');
-    expect(banana[4]).toContainEqual(['large', 136]);
+    expect(banana[4]).toEqual([
+      ['cup, mashed', 225],
+      ['medium', 118],
+      ['large', 136],
+    ]);
   });
 
   it('refuses a release whose units have changed', () => {

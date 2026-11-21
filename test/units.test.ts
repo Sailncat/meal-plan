@@ -123,7 +123,7 @@ describe('metric and imperial', () => {
 describe('loading plans with units', () => {
   it('gives older plans default settings and no measures', () => {
     const p = normalize({ app: 'meal-plan', foods: [{ id: 'a', name: 'Rice' }] });
-    expect(p.settings).toEqual({ system: 'metric', energy: 'kcal' });
+    expect(p.settings).toEqual({ system: 'metric', energy: 'kcal', country: 'en:poland' });
     expect(p.foods[0].measures).toEqual([]);
     expect(p.foods[0].countBy).toBeNull();
   });
@@ -142,8 +142,8 @@ describe('loading plans with units', () => {
 
   it('keeps settings through a save and reload', () => {
     const p = emptyPlan();
-    p.settings = { system: 'imperial', energy: 'kJ' };
-    expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual({ system: 'imperial', energy: 'kJ' });
+    p.settings = { system: 'imperial', energy: 'kJ', country: 'en:ireland' };
+    expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual({ system: 'imperial', energy: 'kJ', country: 'en:ireland' });
   });
 });
 

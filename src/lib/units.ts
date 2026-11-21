@@ -26,7 +26,7 @@ function builtinsFor(system: Settings['system']): Measure[] {
   return [...SPOONS, system === 'imperial' ? US_CUP : METRIC_CUP];
 }
 
-export const DEFAULT_SETTINGS: Settings = { system: 'metric', energy: 'kcal' };
+export const DEFAULT_SETTINGS: Settings = { system: 'metric', energy: 'kcal', country: 'en:poland' };
 
 /** The food's own measures, plus tsp, tbsp and the system's cup for anything measured in ml. */
 export function measuresOf(food: Food, system: Settings['system'] = 'metric'): Measure[] {

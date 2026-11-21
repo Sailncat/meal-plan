@@ -47,7 +47,8 @@ export const NUTRIENTS = [
   ['se', 317, 'UG', 1],
 ];
 
-const SKIP_CATEGORIES = new Set(['Baby Foods']);
+// Baby food is out of scope, and the Alaska Native set (whale, seal, caribou…) only clutters search results.
+const SKIP_CATEGORIES = new Set(['Baby Foods', 'American Indian/Alaska Native Foods']);
 /** Portions that just restate a weight unit the app already has. */
 const SKIP_PORTION = /^(oz|ounce|g|gram|lb|pound|fl oz)\b/i;
 const MAX_PORTIONS = 5;
@@ -113,7 +114,9 @@ export function buildFromCsvDir(dir) {
   for (const f of table(dir, 'food.csv')) {
     const cat = categories.get(f.food_category_id) ?? '';
     if (SKIP_CATEGORIES.has(cat)) continue;
-    foods.set(f.fdc_id, { id: Number(f.fdc_id), name: f.description.trim(), cat, vals: NUTRIENTS.map(() => null), portions: [] });
+    // "(Includes foods for USDA's Food Distribution Program)" is about a US programme, not the food.
+    const name = f.description.replace(/\s*\(Includes foods for USDA's Food Distribution Program\)/i, '').trim();
+    foods.set(f.fdc_id, { id: Number(f.fdc_id), name, cat, vals: NUTRIENTS.map(() => null), portions: [] });
   }
 
   for (const fn of table(dir, 'food_nutrient.csv')) {
@@ -127,7 +130,11 @@ export function buildFromCsvDir(dir) {
   for (const p of portions) {
     const food = foods.get(p.fdc_id);
     if (!food) continue;
-    const name = (p.modifier || p.portion_description || '').trim().replace(/\s+/g, ' ');
+    // "medium (7\" to 7-7/8\" long)" → "medium": the bracket is a size guide, not part of the name.
+    const name = (p.modifier || p.portion_description || '')
+      .replace(/\s*\([^)]*\)/g, '')
+      .trim()
+      .replace(/\s+/g, ' ');
     const amount = Number(p.amount) || 1;
     const grams = Number(p.gram_weight);
     if (!name || !(grams > 0) || SKIP_PORTION.test(name)) continue;

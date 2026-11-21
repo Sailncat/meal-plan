@@ -2,6 +2,7 @@
   import { exportBackup, readBackup } from '../lib/backup';
   import { PlanFormatError, toPlan } from '../lib/migrate';
   import { uid } from '../lib/num';
+  import { COUNTRIES } from '../lib/off';
   import { showToast, store, undoable } from '../lib/store.svelte';
 
   const plan = $derived(store.plan!);
@@ -118,6 +119,23 @@
   </p>
 </div>
 
+<h2 class="bar">Food search</h2>
+<div class="panel pad">
+  <label class="country">
+    <span class="label">Search packaged foods sold in</span>
+    <select class="field" bind:value={plan.settings.country}>
+      {#each COUNTRIES as c (c.tag)}
+        <option value={c.tag}>{c.name}</option>
+      {/each}
+      <option value="">All countries</option>
+    </select>
+  </label>
+  <p class="note">
+    Packaged foods come from Open Food Facts, a free database anyone can add to. Limiting search to where you shop keeps the results
+    relevant; you can still search everywhere from the results. Basic foods like eggs or rice don’t depend on this.
+  </p>
+</div>
+
 <h2 class="bar">Backup</h2>
 <div class="panel pad">
   <p class="note top">
@@ -149,14 +167,28 @@
     {#if store.storage === 'memory'}
       This browser won't let the app save, so changes are lost when you close it. Save a backup file before you go.
     {:else}
-      Everything is stored on this device. Nothing is sent anywhere.
+      Your plan is stored on this device and never uploaded. The only things sent anywhere are packaged-food searches and barcode
+      lookups, which go to Open Food Facts.
     {/if}
+  </p>
+  <p class="note">
+    Packaged food data © <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> contributors,
+    under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License</a>.
+    Basic food data from <a href="https://fdc.nal.usda.gov" target="_blank" rel="noopener">USDA FoodData Central</a> (SR Legacy, public
+    domain).
   </p>
 </div>
 
 <style>
   .pad {
     padding: 0.85rem;
+  }
+  .country {
+    display: block;
+    max-width: 22rem;
+  }
+  .about a {
+    color: inherit;
   }
   .top {
     margin-top: 0;

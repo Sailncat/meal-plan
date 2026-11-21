@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { Recipe } from '../lib/types';
   import { foodById, lineNut, perServing, recipeTotal, recipeUseCount, servingsOf } from '../lib/calc';
-  import { fmt0, fmt1, fold } from '../lib/num';
+  import { fmt0, fmt1 } from '../lib/num';
   import { store, undoable } from '../lib/store.svelte';
   import { E, EU } from '../lib/display';
   import NumInput from './NumInput.svelte';
   import AmountInput from './AmountInput.svelte';
+  import FoodSearch from './FoodSearch.svelte';
+  import { measureOf } from '../lib/units';
 
   interface Props {
     recipe: Recipe;
@@ -15,7 +17,26 @@
   let { recipe, open, ontoggle }: Props = $props();
   const plan = $derived(store.plan!);
 
-  const foods = $derived([...plan.foods].sort((a, b) => fold(a.name).localeCompare(fold(b.name))));
+  // Which line the food search is choosing for; -1 adds a new line.
+  let searching = $state(false);
+  let target = $state(-1);
+  function chooseFood(j: number) {
+    target = j;
+    searching = true;
+  }
+  function picked(ref: string) {
+    const food = foodById(plan, ref.slice(2));
+    if (!food) return;
+    // A new food starts in its own default unit.
+    const measure = food.countBy && measureOf(food, food.countBy) ? food.countBy : null;
+    const line = recipe.lines[target];
+    if (line) {
+      line.food = food.id;
+      line.measure = measure;
+    } else {
+      recipe.lines.push({ food: food.id, amount: measure ? 1 : food.per, measure });
+    }
+  }
   const total = $derived({ kcal: recipeTotal(plan, recipe, 'kcal'), protein: recipeTotal(plan, recipe, 'protein') });
   const per = $derived({ kcal: perServing(plan, recipe, 'kcal'), protein: perServing(plan, recipe, 'protein') });
 
@@ -52,21 +73,10 @@
     {#each recipe.lines as l, j}
       {@const food = foodById(plan, l.food)}
       <div class="line">
-        <select
-          class="field pick"
-          value={l.food}
-          onchange={(e) => {
-            l.food = e.currentTarget.value;
-            // A new food starts in its own default unit.
-            l.measure = foodById(plan, l.food)?.countBy ?? null;
-          }}
-          aria-label="Ingredient {j + 1}"
-        >
-          <option value="">Pick a food</option>
-          {#each foods as f (f.id)}
-            <option value={f.id}>{f.name || 'Unnamed food'}</option>
-          {/each}
-        </select>
+        <button class="field pick" class:blank={!food} onclick={() => chooseFood(j)} aria-label="Ingredient {j + 1}: {food ? food.name || 'Unnamed food' : 'pick a food'}. Change">
+          <span>{food ? food.name || 'Unnamed food' : 'Pick a food'}</span>
+          <span class="pick-chev" aria-hidden="true">▾</span>
+        </button>
         <div class="nums">
           {#if food}
             <AmountInput
@@ -105,9 +115,16 @@
   </label>
 
   <div class="actions foot">
-    <button class="btn small" onclick={() => recipe.lines.push({ food: '', amount: null, measure: null })}>+ Ingredient</button>
+    <button class="btn small" onclick={() => chooseFood(-1)}>+ Ingredient</button>
     <button class="btn small danger" onclick={remove}>Delete recipe</button>
   </div>
+    <FoodSearch
+      bind:open={searching}
+      mode="line"
+      title={target >= 0 ? 'Change ingredient' : `Add to ${recipe.name || 'recipe'}`}
+      action={target >= 0 ? 'Use in recipe' : 'Add to recipe'}
+      onpick={picked}
+    />
   {/if}
 </article>
 
@@ -201,6 +218,27 @@
     align-items: center;
     padding: 0.45rem 0;
     border-bottom: 1px solid var(--line);
+  }
+  .pick {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    text-align: left;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .pick span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pick.blank {
+    color: var(--muted);
+  }
+  .pick-chev {
+    color: var(--muted);
+    font-size: 0.8rem;
   }
   .nums {
     display: grid;

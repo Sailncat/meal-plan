@@ -12,6 +12,13 @@ export interface Measure {
   size: number;
 }
 
+/** Where a food's values came from, when it was picked from a database. */
+export interface FoodSource {
+  db: 'off' | 'usda';
+  /** Barcode for Open Food Facts, FDC id for USDA. */
+  id: string;
+}
+
 export interface Food {
   id: string;
   name: string;
@@ -27,6 +34,8 @@ export interface Food {
   measures: Measure[];
   /** The measure new amounts start in (a measure id), or null for the base unit. */
   countBy: string | null;
+  /** Set when it was picked from a database; used for credit and for finding missing values. */
+  source?: FoodSource;
 }
 
 /**
@@ -128,6 +137,8 @@ export interface Settings {
   /** "imperial" means US customary units: oz, US fl oz (29.57 ml), US cups, lb, ft and in. */
   system: 'metric' | 'imperial';
   energy: 'kcal' | 'kJ';
+  /** Open Food Facts country tag that packaged-food search is limited to, like "en:poland"; "" searches every country. */
+  country: string;
 }
 
 export interface Plan {
@@ -143,6 +154,10 @@ export interface Plan {
   profile: Profile;
   /** Oldest first. */
   weights: WeightEntry[];
+  /** Starred foods and recipes, as "f:id" / "r:id". */
+  favourites: string[];
+  /** Last things added to a meal or recipe, newest first, as "f:id" / "r:id". */
+  recent: string[];
   meta: Meta;
 }
 

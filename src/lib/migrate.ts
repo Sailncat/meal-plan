@@ -5,6 +5,7 @@ import type { Activity, Aim, Day, Entry, Food, MacroKey, Plan, Profile, Range, R
 import { DAYS } from './types';
 import { num, uid } from './num';
 import { DEFAULT_SETTINGS, measureOf } from './units';
+import { RECENT_MAX } from './foods';
 
 const noCustom = (): Record<MacroKey, boolean> => ({ kcal: false, protein: false, carbs: false, fat: false });
 
@@ -82,6 +83,8 @@ export function emptyPlan(): Plan {
     targets: defaultTargets(),
     profile: defaultProfile(),
     weights: [],
+    favourites: [],
+    recent: [],
     meta: { lastBackup: null, backupSnoozedUntil: null },
   };
 }
@@ -117,6 +120,7 @@ export function normalize(p: Record<string, any>): Plan {
       .map((m: any) => ({ id: str(m.id) || uid(), name: str(m.name), size: num(m.size) }))
       .filter((m: { size: number }) => m.size > 0),
     countBy: typeof f.countBy === 'string' ? f.countBy : null,
+    ...(isObj(f.source) && (f.source.db === 'off' || f.source.db === 'usda') && str(f.source.id) ? { source: { db: f.source.db, id: str(f.source.id) } } : {}),
   }));
   const foodMap = new Map(foods.map((f) => [f.id, f]));
   // A unit that no longer exists falls back to the base unit.
@@ -176,10 +180,15 @@ export function normalize(p: Record<string, any>): Plan {
   const weights: WeightEntry[] = [...byDate].sort(([a], [b]) => a.localeCompare(b)).map(([date, kg]) => ({ date, kg }));
   const m = isObj(p.meta) ? p.meta : {};
   const st = isObj(p.settings) ? p.settings : {};
+  const refs = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string' && /^[rf]:/.test(x) && exists(x)))];
   return {
     app: 'meal-plan',
     version: 2,
-    settings: { system: st.system === 'imperial' ? 'imperial' : 'metric', energy: st.energy === 'kJ' ? 'kJ' : 'kcal' },
+    settings: {
+      system: st.system === 'imperial' ? 'imperial' : 'metric',
+      energy: st.energy === 'kJ' ? 'kJ' : 'kcal',
+      country: typeof st.country === 'string' && /^(|[a-z]{2}:[a-z-]+)$/.test(st.country) ? st.country : DEFAULT_SETTINGS.country,
+    },
     foods,
     recipes,
     slots,
@@ -187,6 +196,8 @@ export function normalize(p: Record<string, any>): Plan {
     targets,
     profile,
     weights,
+    favourites: refs(p.favourites),
+    recent: refs(p.recent).slice(0, RECENT_MAX),
     meta: { lastBackup: typeof m.lastBackup === 'string' ? m.lastBackup : null, backupSnoozedUntil: typeof m.backupSnoozedUntil === 'string' ? m.backupSnoozedUntil : null },
   };
 }

@@ -37,8 +37,11 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         // woff2 only (every browser with offline support reads it), and only the Latin subsets the app uses.
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Plus the basic foods list (1.7 MB, about 0.45 MB over the wire), so food search works offline from the start.
+        // The barcode reader's WebAssembly isn't precached: most phones read barcodes natively and never need it.
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}', 'data/*.json'],
         globIgnores: ['**/*vietnamese*'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
     }),
   ],

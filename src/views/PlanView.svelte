@@ -1,16 +1,16 @@
 <script lang="ts">
   import { DAYS } from '../lib/types';
-  import { dayNut, foodById, foodNut, perServing, suppsNut } from '../lib/calc';
-  import { fmt0, fold, uid } from '../lib/num';
+  import { dayNut, foodById, suppsNut } from '../lib/calc';
+  import { fmt0, uid } from '../lib/num';
   import { E, EU, amountOf } from '../lib/display';
-  import { baseAmount, measureOf } from '../lib/units';
+  import { measureOf } from '../lib/units';
   import { targetsInUse } from '../lib/targets';
   import type { Food } from '../lib/types';
   import { store } from '../lib/store.svelte';
   import WeekStrip from '../components/WeekStrip.svelte';
   import Gauge from '../components/Gauge.svelte';
   import SlotCard from '../components/SlotCard.svelte';
-  import Picker, { type PickGroup } from '../components/Picker.svelte';
+  import FoodSearch from '../components/FoodSearch.svelte';
   import BackupBanner from '../components/BackupBanner.svelte';
 
   const plan = $derived(store.plan!);
@@ -33,35 +33,9 @@
   let pickerOpen = $state(false);
   const addSlot = $derived(plan.slots.find((s) => s.id === addTo));
 
-  const byName = <T extends { name: string }>(a: T, b: T) => fold(a.name).localeCompare(fold(b.name));
-  const groups = $derived<PickGroup[]>([
-    {
-      label: 'Recipes',
-      items: [...plan.recipes].sort(byName).map((r) => ({
-        value: 'r:' + r.id,
-        label: r.name || 'Unnamed recipe',
-        sub: `${fmt0(E(perServing(plan, r, 'kcal')))} ${EU()} a serving`,
-      })),
-    },
-    {
-      label: 'Foods',
-      items: plan.foods
-        .filter((f) => !f.supplement)
-        .sort(byName)
-        .map((f) => ({ value: 'f:' + f.id, label: f.name || 'Unnamed food', sub: startSub(f) })),
-    },
-  ]);
-
   /** What a food starts at when added: one of its default piece, or one label amount. */
   const startAmount = (f: Food) => (f.countBy && measureOf(f, f.countBy) ? 1 : f.per);
   const startMeasure = (f: Food) => (f.countBy && measureOf(f, f.countBy) ? f.countBy : null);
-  function startSub(f: Food) {
-    const amount = startAmount(f);
-    const measure = startMeasure(f);
-    const kcal = foodNut(f, baseAmount(f, amount, measure), 'kcal');
-    return `${fmt0(E(kcal))} ${EU()} per ${amountOf(f, amount, measure).replace(/^1 /, '')}`;
-  }
-
   function openPicker(slotId: string) {
     addTo = slotId;
     pickerOpen = true;
@@ -143,13 +117,7 @@
   </div>
 </div>
 
-<Picker
-  bind:open={pickerOpen}
-  title="Add to {addSlot?.name || 'meal'}"
-  {groups}
-  empty="Add some foods or recipes first, on the Foods and Recipes tabs."
-  onpick={add}
-/>
+<FoodSearch bind:open={pickerOpen} mode="meal" title="Add to {addSlot?.name || 'meal'}" action="Add to {addSlot?.name || 'meal'}" onpick={add} />
 
 <style>
   .sticky {

@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { Food } from '../lib/types';
   import { foodNut, foodUsedIn } from '../lib/calc';
-  import { NUTRIENTS } from '../lib/nutrients';
+  import { ALL_NUTRIENTS, NUTRIENTS } from '../lib/nutrients';
   import { fmt0, fmt1, uid } from '../lib/num';
   import { baseAmount, measureOf, measuresOf, plural } from '../lib/units';
   import { E, EU, amountOf, fromE, system } from '../lib/display';
   import { store, undoable } from '../lib/store.svelte';
   import NumInput from './NumInput.svelte';
+  import FoodSearch from './FoodSearch.svelte';
+  import { blanksFilledBy, fillBlanks } from '../lib/foods';
 
   interface Props {
     food: Food;
@@ -68,6 +70,23 @@
       food.measures = food.measures.filter((x) => x.id !== id);
     });
   }
+
+  // ---------- filling blanks from a database ----------
+  let finding = $state(false);
+  const canFill = $derived((food.unit === 'g' || food.unit === 'ml') && ALL_NUTRIENTS.some((n) => food.nut[n.k] == null));
+  function fill(nut: Record<string, number>, from: string) {
+    const n = blanksFilledBy(food, nut).length;
+    undoable(`Filled ${n} value${n === 1 ? '' : 's'} in ${food.name || 'this food'} from ${from}`, () => {
+      fillBlanks(food, nut);
+    });
+  }
+  const sourceLink = $derived(
+    food.source?.db === 'off'
+      ? { text: 'Open Food Facts', url: `https://world.openfoodfacts.org/product/${food.source.id}` }
+      : food.source?.db === 'usda'
+        ? { text: 'USDA FoodData Central', url: `https://fdc.nal.usda.gov/food-details/${food.source.id}/nutrients` }
+        : null,
+  );
 
   function remove() {
     undoable(`Deleted ${food.name || 'unnamed food'}`, (p) => {
@@ -157,6 +176,13 @@
         <span><b>Supplement</b><small>Ticked off each day on the Plan tab, instead of added to meals. Counts one label amount.</small></span>
       </label>
 
+      {#if canFill}
+        <div class="find">
+          <button class="btn small" onclick={() => (finding = true)}>Find missing values</button>
+          <span class="note">Fills only the blanks, from basic or packaged foods.</span>
+        </div>
+      {/if}
+
       <details>
         <summary>More nutrients <span class="muted">({filled} of {more.length} filled in)</span></summary>
         <div class="grid more">
@@ -170,7 +196,9 @@
       </details>
 
       <label class="note-in">
-        <span class="label">Source or note</span>
+        <span class="label">
+          Source or note{#if sourceLink} · <a href={sourceLink.url} target="_blank" rel="noopener">see it on {sourceLink.text} ↗</a>{/if}
+        </span>
         <textarea class="field" bind:value={food.note} placeholder="Where the values came from" rows="2"></textarea>
       </label>
 
@@ -184,6 +212,10 @@
     </div>
   {/if}
 </article>
+
+{#if open && canFill}
+  <FoodSearch bind:open={finding} mode="fill" title="Find missing values" query={food.name} fillFood={food} onfill={fill} />
+{/if}
 
 <datalist id="base-units">
   <option value="g"></option>
@@ -276,6 +308,20 @@
     display: block;
     color: var(--muted);
     font-size: 0.85rem;
+  }
+  .find {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.6rem;
+    margin-top: 0.8rem;
+  }
+  .find .note {
+    margin: 0;
+  }
+  .note-in a {
+    color: inherit;
+    font-weight: 500;
   }
   details summary {
     cursor: pointer;
