@@ -1,7 +1,10 @@
 <script lang="ts">
   import { DAYS } from '../lib/types';
-  import { dayNut, foodById, perServing, suppsNut } from '../lib/calc';
+  import { dayNut, foodById, foodNut, perServing, suppsNut } from '../lib/calc';
   import { fmt0, fold, uid } from '../lib/num';
+  import { E, EU, amountOf } from '../lib/display';
+  import { baseAmount, measureOf } from '../lib/units';
+  import type { Food } from '../lib/types';
   import { store } from '../lib/store.svelte';
   import WeekStrip from '../components/WeekStrip.svelte';
   import Gauge from '../components/Gauge.svelte';
@@ -33,7 +36,7 @@
       items: [...plan.recipes].sort(byName).map((r) => ({
         value: 'r:' + r.id,
         label: r.name || 'Unnamed recipe',
-        sub: `${fmt0(perServing(plan, r, 'kcal'))} kcal a serving`,
+        sub: `${fmt0(E(perServing(plan, r, 'kcal')))} ${EU()} a serving`,
       })),
     },
     {
@@ -41,9 +44,19 @@
       items: plan.foods
         .filter((f) => !f.supplement)
         .sort(byName)
-        .map((f) => ({ value: 'f:' + f.id, label: f.name || 'Unnamed food', sub: `per ${f.per} ${f.unit}` })),
+        .map((f) => ({ value: 'f:' + f.id, label: f.name || 'Unnamed food', sub: startSub(f) })),
     },
   ]);
+
+  /** What a food starts at when added: one of its default piece, or one label amount. */
+  const startAmount = (f: Food) => (f.countBy && measureOf(f, f.countBy) ? 1 : f.per);
+  const startMeasure = (f: Food) => (f.countBy && measureOf(f, f.countBy) ? f.countBy : null);
+  function startSub(f: Food) {
+    const amount = startAmount(f);
+    const measure = startMeasure(f);
+    const kcal = foodNut(f, baseAmount(f, amount, measure), 'kcal');
+    return `${fmt0(E(kcal))} ${EU()} per ${amountOf(f, amount, measure).replace(/^1 /, '')}`;
+  }
 
   function openPicker(slotId: string) {
     addTo = slotId;
@@ -53,8 +66,9 @@
   function add(ref: string) {
     if (!addTo) return;
     const food = ref.startsWith('f:') ? foodById(plan, ref.slice(2)) : undefined;
-    const amount = ref.startsWith('r:') ? 1 : (food?.per ?? null);
-    (day.meals[addTo] ??= []).push({ id: uid(), ref, amount });
+    const amount = food ? startAmount(food) : 1;
+    const measure = food ? startMeasure(food) : null;
+    (day.meals[addTo] ??= []).push({ id: uid(), ref, amount, measure });
   }
 
   function toggleSupp(id: string, on: boolean) {
@@ -90,7 +104,7 @@
   </h1>
 
   <div class="gauges">
-    <Gauge name="Calories" value={kcalByDay[selected]} unit="kcal" low={plan.targets.kcalLow} high={plan.targets.kcalHigh} />
+    <Gauge name={EU() === 'kJ' ? 'Energy' : 'Calories'} value={E(kcalByDay[selected])} unit={EU()} low={E(plan.targets.kcalLow)} high={E(plan.targets.kcalHigh)} />
     <Gauge name="Protein" value={proteinByDay[selected]} unit="g" low={plan.targets.proteinLow} high={plan.targets.proteinHigh} />
   </div>
 
@@ -103,7 +117,7 @@
       <header>
         <h2 id="supps-h">Supplements</h2>
         {#if day.supps.length}
-          <span class="sum tabular">{fmt0(suppsNut(plan, day, 'kcal'))} kcal</span>
+          <span class="sum tabular">{fmt0(E(suppsNut(plan, day, 'kcal')))} {EU()}</span>
         {/if}
       </header>
       {#if supplements.length}
@@ -112,7 +126,7 @@
             <label class="supp">
               <input type="checkbox" checked={day.supps.includes(s.id)} onchange={(e) => toggleSupp(s.id, e.currentTarget.checked)} />
               <span>{s.name || 'Unnamed supplement'}</span>
-              <small>{s.per} {s.unit}</small>
+              <small>{amountOf(s, s.per, null)}</small>
             </label>
           {/each}
         </div>

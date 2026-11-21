@@ -3,6 +3,7 @@
   import { fmt0 } from '../lib/num';
   import { bandStatus } from '../lib/calc';
   import { store } from '../lib/store.svelte';
+  import { E, EU } from '../lib/display';
 
   interface Props {
     selected: number;
@@ -23,11 +24,11 @@
       class="day"
       class:sel={i === selected}
       aria-pressed={i === selected}
-      aria-label="{DAYS[i]}: {fmt0(kcal[i])} kcal, {fmt0(protein[i])} g protein{i === today ? ', today' : ''}"
+      aria-label="{DAYS[i]}: {fmt0(E(kcal[i]))} {EU()}, {fmt0(protein[i])} g protein{i === today ? ', today' : ''}"
       onclick={() => onselect(i)}
     >
       <span class="d">{d}{#if i === today}<span class="today" aria-hidden="true"></span>{/if}</span>
-      <span class="k tabular {kcal[i] ? ks : 'empty'}">{kcal[i] ? fmt0(kcal[i]) : '–'}</span>
+      <span class="k tabular {kcal[i] ? ks : 'empty'}">{kcal[i] ? fmt0(E(kcal[i])) : '–'}</span>
       <span class="p tabular {ps}">{kcal[i] ? fmt0(protein[i]) + ' g' : ''}</span>
     </button>
   {/each}

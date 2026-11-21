@@ -1,18 +1,22 @@
 import type { Day, Entry, Food, Plan, Recipe, RecipeLine } from './types';
 import { num } from './num';
+import { baseAmount } from './units';
 
 export const foodById = (plan: Plan, id: string): Food | undefined => plan.foods.find((f) => f.id === id);
 export const recipeById = (plan: Plan, id: string): Recipe | undefined => plan.recipes.find((r) => r.id === id);
 
-/** Nutrient `key` in `amount` units of a food. */
-export function foodNut(food: Food | undefined, amount: number | null, key: string): number {
+/** Nutrient `key` in an amount of a food given in its base unit (g, ml or its counting word). */
+export function foodNut(food: Food | undefined, base: number | null, key: string): number {
   if (!food || !num(food.per)) return 0;
   const v = food.nut[key];
   if (v == null) return 0;
-  return (num(amount) / num(food.per)) * num(v);
+  return (num(base) / num(food.per)) * num(v);
 }
 
-export const lineNut = (plan: Plan, line: RecipeLine, key: string) => foodNut(foodById(plan, line.food), line.amount, key);
+export function lineNut(plan: Plan, line: RecipeLine, key: string): number {
+  const food = foodById(plan, line.food);
+  return foodNut(food, baseAmount(food, line.amount, line.measure), key);
+}
 
 export const recipeTotal = (plan: Plan, r: Recipe, key: string) => r.lines.reduce((t, l) => t + lineNut(plan, l, key), 0);
 
@@ -35,7 +39,7 @@ export function entryNut(plan: Plan, e: Entry, key: string): number {
   const t = entryTarget(plan, e);
   if (!t) return 0;
   if (t.kind === 'recipe') return perServing(plan, t.recipe, key) * num(e.amount);
-  return foodNut(t.food, e.amount, key);
+  return foodNut(t.food, baseAmount(t.food, e.amount, e.measure), key);
 }
 
 export const entriesNut = (plan: Plan, entries: Entry[] | undefined, key: string) =>
@@ -92,14 +96,6 @@ export function recipeUseCount(plan: Plan, recipeId: string): number {
   let n = 0;
   for (const d of plan.week) for (const es of Object.values(d.meals)) n += es.filter((e) => e.ref === ref).length;
   return n;
-}
-
-/** The unit word shown next to an entry's amount. */
-export function entryUnit(plan: Plan, e: Entry): string {
-  const t = entryTarget(plan, e);
-  if (!t) return '';
-  if (t.kind === 'recipe') return num(e.amount) === 1 ? 'serving' : 'servings';
-  return t.food.unit;
 }
 
 export type Status = 'ok' | 'under' | 'over';

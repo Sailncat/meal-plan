@@ -4,6 +4,7 @@
   import { uid } from '../lib/num';
   import { showToast, store, undoable } from '../lib/store.svelte';
   import NumInput from '../components/NumInput.svelte';
+  import { E, EU, fromE } from '../lib/display';
 
   const plan = $derived(store.plan!);
   let fileInput: HTMLInputElement | undefined = $state();
@@ -88,18 +89,48 @@
   <button class="btn small" onclick={addSlot}>+ Add a meal</button>
 </div>
 
+<h2 class="bar">Units</h2>
+<div class="panel pad">
+  <div class="unit-row">
+    <span class="label">Measurements</span>
+    <div class="seg" role="radiogroup" aria-label="Measurements">
+      <button role="radio" aria-checked={plan.settings.system === 'metric'} onclick={() => (plan.settings.system = 'metric')}>
+        Metric<small>g · ml</small>
+      </button>
+      <button role="radio" aria-checked={plan.settings.system === 'imperial'} onclick={() => (plan.settings.system = 'imperial')}>
+        Imperial (UK)<small>oz · fl oz</small>
+      </button>
+    </div>
+  </div>
+  <div class="unit-row">
+    <span class="label">Energy</span>
+    <div class="seg" role="radiogroup" aria-label="Energy">
+      <button role="radio" aria-checked={plan.settings.energy === 'kcal'} onclick={() => (plan.settings.energy = 'kcal')}>
+        Calories<small>kcal</small>
+      </button>
+      <button role="radio" aria-checked={plan.settings.energy === 'kJ'} onclick={() => (plan.settings.energy = 'kJ')}>
+        Kilojoules<small>kJ</small>
+      </button>
+    </div>
+  </div>
+  <p class="note">
+    Switching only changes how amounts are shown; your plan is always saved in metric. Food labels on the Foods tab stay in grams and
+    millilitres, like on the packet. Pieces and spoons (3 eggs, 1 tbsp) look the same either way.
+  </p>
+</div>
+
 <h2 class="bar">Daily targets</h2>
 <div class="panel pad">
   <div class="targets">
     <span></span><span class="label">Low</span><span class="label">High</span>
-    <span>Calories (kcal)</span>
-    <NumInput value={plan.targets.kcalLow} label="Lowest daily calories" onchange={(v) => (plan.targets.kcalLow = v ?? 0)} />
-    <NumInput value={plan.targets.kcalHigh} label="Highest daily calories" onchange={(v) => (plan.targets.kcalHigh = v ?? 0)} />
+    <span>{EU() === 'kJ' ? 'Energy' : 'Calories'} ({EU()})</span>
+    <NumInput value={Math.round(E(plan.targets.kcalLow))} label="Lowest daily {EU()}" onchange={(v) => (plan.targets.kcalLow = fromE(v ?? 0))} />
+    <NumInput value={Math.round(E(plan.targets.kcalHigh))} label="Highest daily {EU()}" onchange={(v) => (plan.targets.kcalHigh = fromE(v ?? 0))} />
     <span>Protein (g)</span>
     <NumInput value={plan.targets.proteinLow} label="Lowest daily protein" onchange={(v) => (plan.targets.proteinLow = v ?? 0)} />
     <NumInput value={plan.targets.proteinHigh} label="Highest daily protein" onchange={(v) => (plan.targets.proteinHigh = v ?? 0)} />
   </div>
-  <p class="note">A day's calories show green inside this range, red above it and gold below. Protein shows gold below your low target.</p>
+  <p class="note">A day's {EU() === 'kJ' ? 'energy' : 'calories'} show green inside this range, red above it and gold below. Protein shows gold below your low target.</p>
 </div>
 
 <h2 class="bar">Backup</h2>
@@ -168,6 +199,45 @@
     gap: 0.5rem 0.75rem;
     align-items: center;
     max-width: 26rem;
+  }
+  .unit-row {
+    display: grid;
+    gap: 0.3rem;
+    margin-bottom: 0.8rem;
+  }
+  .seg {
+    display: inline-grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    max-width: 24rem;
+    padding: 0.2rem;
+    gap: 0.2rem;
+    border: 1px solid var(--line);
+    border-radius: 0.55rem;
+    background: var(--bg);
+  }
+  .seg button {
+    display: grid;
+    min-height: 2.75rem;
+    padding: 0.35rem 0.6rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .seg button small {
+    font-weight: 500;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .seg button[aria-checked='true'] {
+    background: var(--bar);
+    color: var(--bar-ink);
+  }
+  .seg button[aria-checked='true'] small {
+    color: inherit;
+    opacity: 0.85;
   }
   .last {
     font-weight: 600;

@@ -1,9 +1,11 @@
 <script lang="ts">
   import type { Day, Slot } from '../lib/types';
-  import { entriesNut, entryNut, entryTarget, entryUnit } from '../lib/calc';
+  import { entriesNut, entryNut, entryTarget } from '../lib/calc';
   import { fmt0 } from '../lib/num';
+  import { E, EU } from '../lib/display';
   import { store, undoable } from '../lib/store.svelte';
   import NumInput from './NumInput.svelte';
+  import AmountInput from './AmountInput.svelte';
 
   interface Props {
     day: Day;
@@ -28,20 +30,34 @@
   <header>
     <h2 id="slot-{slot.id}">{slot.name || 'Unnamed meal'}</h2>
     {#if entries.length}
-      <span class="sum tabular">{fmt0(kcal)} kcal · {fmt0(protein)} g protein</span>
+      <span class="sum tabular">{fmt0(E(kcal))} {EU()} · {fmt0(protein)} g protein</span>
     {/if}
   </header>
 
   {#each entries as e (e.id)}
     {@const name = nameOf(e)}
+    {@const t = entryTarget(plan, e)}
     <div class="entry">
       <div class="what">
         <span class="name">{name}</span>
-        <small class="tabular">{fmt0(entryNut(plan, e, 'kcal'))} kcal · {fmt0(entryNut(plan, e, 'protein'))} g protein</small>
+        <small class="tabular">{fmt0(E(entryNut(plan, e, 'kcal')))} {EU()} · {fmt0(entryNut(plan, e, 'protein'))} g protein</small>
       </div>
       <div class="amt">
-        <NumInput value={e.amount} label="{name} amount" onchange={(v) => (e.amount = v)} />
-        <span class="unit">{entryUnit(plan, e)}</span>
+        {#if t?.kind === 'food'}
+          <AmountInput
+            food={t.food}
+            amount={e.amount}
+            measure={e.measure}
+            label="{name} amount"
+            onchange={(a, m) => {
+              e.amount = a;
+              e.measure = m;
+            }}
+          />
+        {:else}
+          <NumInput value={e.amount} label="{name} servings" onchange={(v) => (e.amount = v)} />
+          <span class="unit">{e.amount === 1 ? 'serving' : 'servings'}</span>
+        {/if}
       </div>
       <button
         class="icon-btn x"
@@ -108,11 +124,12 @@
     align-items: center;
     gap: 0.35rem;
   }
-  .amt :global(.field) {
-    width: 4.5rem;
+  .amt > :global(.field.num) {
+    width: 4.25rem;
   }
   .unit {
-    width: 4.2rem;
+    width: 6.75rem;
+    padding-left: 0.4rem;
     font-size: 0.85rem;
     color: var(--muted);
     overflow: hidden;
@@ -157,9 +174,6 @@
     .entry .icon-btn {
       grid-area: x;
       justify-self: end;
-    }
-    .unit {
-      width: 3.6rem;
     }
   }
 </style>

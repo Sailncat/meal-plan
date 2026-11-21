@@ -4,6 +4,7 @@
 import type { Day, Entry, Food, Plan, Recipe, Slot, Targets } from './types';
 import { DAYS } from './types';
 import { num, uid } from './num';
+import { DEFAULT_SETTINGS, measureOf } from './units';
 
 export const DEFAULT_TARGETS: Targets = { kcalLow: 2200, kcalHigh: 2300, proteinLow: 160, proteinHigh: 180 };
 
@@ -21,6 +22,7 @@ export function emptyPlan(): Plan {
   return {
     app: 'meal-plan',
     version: 2,
+    settings: { ...DEFAULT_SETTINGS },
     foods: [],
     recipes: [],
     slots,
@@ -56,12 +58,23 @@ export function normalize(p: Record<string, any>): Plan {
       : {},
     note: str(f.note),
     supplement: !!f.supplement,
+    measures: (Array.isArray(f.measures) ? f.measures : [])
+      .filter(isObj)
+      .map((m: any) => ({ id: str(m.id) || uid(), name: str(m.name), size: num(m.size) }))
+      .filter((m: { size: number }) => m.size > 0),
+    countBy: typeof f.countBy === 'string' ? f.countBy : null,
   }));
+  const foodMap = new Map(foods.map((f) => [f.id, f]));
+  // A unit that no longer exists falls back to the base unit.
+  const measureFor = (foodId: string, m: unknown) => (typeof m === 'string' && measureOf(foodMap.get(foodId), m) ? m : null);
+  for (const f of foods) f.countBy = measureFor(f.id, f.countBy);
   const recipes: Recipe[] = (Array.isArray(p.recipes) ? p.recipes : []).filter(isObj).map((r: any) => ({
     id: str(r.id) || uid(),
     name: str(r.name),
     servings: num(r.servings) > 0 ? num(r.servings) : 1,
-    lines: (Array.isArray(r.lines) ? r.lines : []).filter(isObj).map((l: any) => ({ food: str(l.food), amount: amountOf(l.amount) })),
+    lines: (Array.isArray(r.lines) ? r.lines : [])
+      .filter(isObj)
+      .map((l: any) => ({ food: str(l.food), amount: amountOf(l.amount), measure: measureFor(str(l.food), l.measure) })),
     notes: str(r.notes),
   }));
   let slots: Slot[] = (Array.isArray(p.slots) ? p.slots : []).filter(isObj).map((s: any) => ({ id: str(s.id) || uid(), name: str(s.name) }));
@@ -78,7 +91,12 @@ export function normalize(p: Record<string, any>): Plan {
     for (const s of slots) {
       meals[s.id] = (Array.isArray(rawMeals[s.id]) ? rawMeals[s.id] : [])
         .filter((e: any) => isObj(e) && typeof e.ref === 'string' && /^[rf]:/.test(e.ref) && exists(e.ref))
-        .map((e: any) => ({ id: str(e.id) || uid(), ref: e.ref, amount: amountOf(e.amount) }));
+        .map((e: any) => ({
+          id: str(e.id) || uid(),
+          ref: e.ref,
+          amount: amountOf(e.amount),
+          measure: e.ref.startsWith('f:') ? measureFor(e.ref.slice(2), e.measure) : null,
+        }));
     }
     const supps = Array.isArray(d.supps) ? [...new Set<string>(d.supps.filter((x: unknown) => typeof x === 'string' && foodIds.has(x)))] : [];
     return { meals, supps };
@@ -91,9 +109,11 @@ export function normalize(p: Record<string, any>): Plan {
     proteinHigh: t.proteinHigh != null ? num(t.proteinHigh) : DEFAULT_TARGETS.proteinHigh,
   };
   const m = isObj(p.meta) ? p.meta : {};
+  const st = isObj(p.settings) ? p.settings : {};
   return {
     app: 'meal-plan',
     version: 2,
+    settings: { system: st.system === 'imperial' ? 'imperial' : 'metric', energy: st.energy === 'kJ' ? 'kJ' : 'kcal' },
     foods,
     recipes,
     slots,

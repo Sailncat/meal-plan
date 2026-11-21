@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { Food } from '../lib/types';
-  import { foodUsedIn } from '../lib/calc';
+  import { foodNut, foodUsedIn } from '../lib/calc';
   import { NUTRIENTS } from '../lib/nutrients';
-  import { fmt0, fmt1 } from '../lib/num';
+  import { fmt0, fmt1, uid } from '../lib/num';
+  import { baseAmount, measureOf, measuresOf, plural } from '../lib/units';
+  import { E, EU, amountOf, fromE } from '../lib/display';
   import { store, undoable } from '../lib/store.svelte';
   import NumInput from './NumInput.svelte';
 
@@ -18,6 +20,15 @@
   const MAIN = ['carbs', 'fat'];
   const more = NUTRIENTS.filter((n) => !MAIN.includes(n.k));
   const filled = $derived(more.filter((n) => food.nut[n.k] != null).length);
+
+  // The summary line describes one of whatever the food is counted in by default.
+  const startMeasure = $derived(food.countBy && measureOf(food, food.countBy) ? food.countBy : null);
+  const startAmount = $derived(startMeasure ? 1 : food.per);
+  const startBase = $derived(baseAmount(food, startAmount, startMeasure));
+  const summary = $derived(
+    `${fmt0(E(foodNut(food, startBase, 'kcal')))} ${EU()} · ${fmt1(foodNut(food, startBase, 'protein'))} g protein per ${amountOf(food, startAmount, startMeasure).replace(/^1 /, '')}`,
+  );
+  const byWhat = $derived(food.unit === 'g' ? ' (by weight)' : food.unit === 'ml' ? ' (by volume)' : '');
 
   function setNut(k: string, v: number | null) {
     if (v == null) delete food.nut[k];
@@ -35,6 +46,29 @@
     });
   }
 
+  function addMeasure() {
+    const id = uid();
+    food.measures.push({ id, name: '', size: food.per });
+    queueMicrotask(() => document.querySelector<HTMLInputElement>(`#way-${id}`)?.focus());
+  }
+
+  /** Removing a way to count it turns every amount that used it back into the base unit, so nothing changes size. */
+  function removeMeasure(id: string) {
+    const m = food.measures.find((x) => x.id === id);
+    if (!m) return;
+    undoable(`Removed “${m.name || 'unnamed'}” from ${food.name || 'this food'}`, (p) => {
+      const back = (o: { amount: number | null; measure: string | null }) => {
+        if (o.measure !== id) return;
+        o.amount = o.amount == null ? null : Math.round(o.amount * m.size * 10) / 10;
+        o.measure = null;
+      };
+      for (const r of p.recipes) for (const l of r.lines) if (l.food === food.id) back(l);
+      for (const d of p.week) for (const list of Object.values(d.meals)) for (const e of list) if (e.ref === 'f:' + food.id) back(e);
+      if (food.countBy === id) food.countBy = null;
+      food.measures = food.measures.filter((x) => x.id !== id);
+    });
+  }
+
   function remove() {
     undoable(`Deleted ${food.name || 'unnamed food'}`, (p) => {
       p.foods = p.foods.filter((f) => f.id !== food.id);
@@ -48,7 +82,7 @@
       {food.name || 'Unnamed food'}
       {#if food.supplement}<span class="tag">Supplement</span>{/if}
     </span>
-    <span class="meta tabular">per {fmt1(food.per)} {food.unit} · {fmt0(food.nut.kcal ?? 0)} kcal · {fmt1(food.nut.protein ?? 0)} g protein</span>
+    <span class="meta tabular">{summary}</span>
     <span class="chev" aria-hidden="true">▾</span>
   </button>
 
@@ -60,16 +94,16 @@
           <input class="field nm-in" bind:value={food.name} placeholder="e.g. Oats (dry)" />
         </label>
         <label>
-          <span class="label">Values per</span>
-          <NumInput value={food.per} label="Values per" onchange={(v) => v && v > 0 && (food.per = v)} />
+          <span class="label">Label values per</span>
+          <NumInput value={food.per} label="Label values per" onchange={(v) => v && v > 0 && (food.per = v)} />
         </label>
         <label>
           <span class="label">Unit</span>
-          <input class="field" bind:value={food.unit} placeholder="g, ml, egg…" />
+          <input class="field" bind:value={food.unit} placeholder="g or ml" list="base-units" />
         </label>
         <label>
-          <span class="label">kcal</span>
-          <NumInput value={food.nut.kcal ?? null} label="kcal" onchange={(v) => setNut('kcal', v)} />
+          <span class="label">{EU()}</span>
+          <NumInput value={food.nut.kcal != null ? E(food.nut.kcal) : null} label={EU()} onchange={(v) => setNut('kcal', v == null ? null : fromE(v))} />
         </label>
         <label>
           <span class="label">Protein (g)</span>
@@ -84,10 +118,43 @@
           <NumInput value={food.nut.fat ?? null} label="Fat" onchange={(v) => setNut('fat', v)} />
         </label>
       </div>
+      <p class="note hint">Copy the label: values per 100 g or 100 ml. For something without a weight, like a tablet, use that word as the unit.</p>
+
+      <section class="ways" aria-label="Ways to count it">
+        <span class="label">Ways to count it</span>
+        {#each food.measures as m (m.id)}
+          <div class="way">
+            <span class="one">1</span>
+            <input class="field" id="way-{m.id}" bind:value={m.name} placeholder="egg, slice…" aria-label="Name, like egg or slice" />
+            <span class="eq">=</span>
+            <NumInput value={m.size} label="How much one {m.name || 'of these'} is, in {food.unit}" onchange={(v) => v && v > 0 && (m.size = v)} />
+            <span class="u">{food.unit}</span>
+            <button class="icon-btn x" aria-label="Remove {m.name || 'this way to count it'}" onclick={() => removeMeasure(m.id)}>×</button>
+          </div>
+        {/each}
+        <div class="ways-foot">
+          <button class="btn small" onclick={addMeasure}>+ Add a way to count it</button>
+          <span class="note">
+            Like 1 egg = 60 g or 1 slice = 35 g.{#if food.unit === 'ml'}
+              tsp, tbsp and cup (5, 15 and 250 ml) are always there for liquids.{/if}
+          </span>
+        </div>
+        {#if measuresOf(food).length}
+          <label class="countby">
+            <span class="label">New amounts start in</span>
+            <select class="field" value={startMeasure ?? ''} onchange={(e) => (food.countBy = e.currentTarget.value || null)}>
+              <option value="">{plural(food.unit, 2)}{byWhat}</option>
+              {#each measuresOf(food) as m (m.id)}
+                <option value={m.id}>{plural(m.name || 'unnamed', 2)}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
+      </section>
 
       <label class="check">
         <input type="checkbox" checked={food.supplement} onchange={(e) => setSupplement(e.currentTarget.checked)} />
-        <span><b>Supplement</b><small>Ticked off each day on the Plan tab, instead of added to meals. Counts one “values per” amount.</small></span>
+        <span><b>Supplement</b><small>Ticked off each day on the Plan tab, instead of added to meals. Counts one label amount.</small></span>
       </label>
 
       <details>
@@ -117,6 +184,11 @@
     </div>
   {/if}
 </article>
+
+<datalist id="base-units">
+  <option value="g"></option>
+  <option value="ml"></option>
+</datalist>
 
 <style>
   .food {
@@ -228,5 +300,47 @@
   }
   .body .note {
     margin: -0.4rem 0 0;
+  }
+  .hint {
+    margin-top: -0.5rem !important;
+  }
+  .ways {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 0.45rem;
+    background: var(--bg);
+  }
+  .way {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto 4.5rem 2.2rem auto;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .one,
+  .eq,
+  .u {
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .u {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ways-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+  }
+  .ways-foot .note {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+  .countby {
+    display: block;
+    margin-top: 0.35rem;
+    max-width: 18rem;
   }
 </style>

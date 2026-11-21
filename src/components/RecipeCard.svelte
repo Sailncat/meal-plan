@@ -3,7 +3,9 @@
   import { foodById, lineNut, perServing, recipeTotal, recipeUseCount, servingsOf } from '../lib/calc';
   import { fmt0, fmt1, fold } from '../lib/num';
   import { store, undoable } from '../lib/store.svelte';
+  import { E, EU } from '../lib/display';
   import NumInput from './NumInput.svelte';
+  import AmountInput from './AmountInput.svelte';
 
   interface Props {
     recipe: Recipe;
@@ -32,7 +34,7 @@
   <button class="summary" aria-expanded={open} onclick={ontoggle}>
     <span class="nm">{recipe.name || 'Unnamed recipe'}</span>
     <span class="meta tabular">
-      {fmt0(per.kcal)} kcal · {fmt0(per.protein)} g protein a serving{servingsOf(recipe) > 1 ? ` · batch makes ${servingsOf(recipe)}` : ''}
+      {fmt0(E(per.kcal))} {EU()} · {fmt0(per.protein)} g protein a serving{servingsOf(recipe) > 1 ? ` · batch makes ${servingsOf(recipe)}` : ''}
     </span>
     <span class="chev" aria-hidden="true">▾</span>
   </button>
@@ -50,16 +52,39 @@
     {#each recipe.lines as l, j}
       {@const food = foodById(plan, l.food)}
       <div class="line">
-        <select class="field pick" value={l.food} onchange={(e) => (l.food = e.currentTarget.value)} aria-label="Ingredient {j + 1}">
+        <select
+          class="field pick"
+          value={l.food}
+          onchange={(e) => {
+            l.food = e.currentTarget.value;
+            // A new food starts in its own default unit.
+            l.measure = foodById(plan, l.food)?.countBy ?? null;
+          }}
+          aria-label="Ingredient {j + 1}"
+        >
           <option value="">Pick a food</option>
           {#each foods as f (f.id)}
             <option value={f.id}>{f.name || 'Unnamed food'}</option>
           {/each}
         </select>
         <div class="nums">
-          <NumInput value={l.amount} label="Amount of ingredient {j + 1}" onchange={(v) => (l.amount = v)} />
-          <span class="unit">{food?.unit ?? ''}</span>
-          <span class="mac tabular">{food && l.amount != null ? `${fmt0(lineNut(plan, l, 'kcal'))} kcal` : ''}</span>
+          {#if food}
+            <AmountInput
+              {food}
+              amount={l.amount}
+              measure={l.measure}
+              label="Amount of {food.name || 'ingredient ' + (j + 1)}"
+              onchange={(a, m) => {
+                l.amount = a;
+                l.measure = m;
+              }}
+            />
+          {:else}
+            <span class="amount-blank">
+              <NumInput value={l.amount} label="Amount of ingredient {j + 1}" onchange={(v) => (l.amount = v)} />
+            </span>
+          {/if}
+          <span class="mac tabular">{food && l.amount != null ? `${fmt0(E(lineNut(plan, l, 'kcal')))} ${EU()}` : ''}</span>
           <span class="mac tabular">{food && l.amount != null ? `${fmt1(lineNut(plan, l, 'protein'))} g` : ''}</span>
           <button class="icon-btn x" aria-label="Remove ingredient {j + 1}" onclick={() => recipe.lines.splice(j, 1)}>×</button>
         </div>
@@ -68,9 +93,9 @@
   </div>
 
   <div class="totals tabular">
-    <div><span>Whole batch</span><b>{fmt0(total.kcal)} kcal · {fmt0(total.protein)} g protein</b></div>
+    <div><span>Whole batch</span><b>{fmt0(E(total.kcal))} {EU()} · {fmt0(total.protein)} g protein</b></div>
     {#if servingsOf(recipe) > 1}
-      <div><span>Per serving</span><b>{fmt0(per.kcal)} kcal · {fmt0(per.protein)} g protein</b></div>
+      <div><span>Per serving</span><b>{fmt0(E(per.kcal))} {EU()} · {fmt0(per.protein)} g protein</b></div>
     {/if}
   </div>
 
@@ -80,7 +105,7 @@
   </label>
 
   <div class="actions foot">
-    <button class="btn small" onclick={() => recipe.lines.push({ food: '', amount: null })}>+ Ingredient</button>
+    <button class="btn small" onclick={() => recipe.lines.push({ food: '', amount: null, measure: null })}>+ Ingredient</button>
     <button class="btn small danger" onclick={remove}>Delete recipe</button>
   </div>
   {/if}
@@ -179,16 +204,16 @@
   }
   .nums {
     display: grid;
-    grid-template-columns: 4.5rem 3.5rem 4.6rem 3.6rem auto;
+    grid-template-columns: auto 4.6rem 3.6rem auto;
     align-items: center;
     gap: 0.4rem;
   }
-  .unit {
-    font-size: 0.85rem;
-    color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .amount-blank {
+    display: inline-block;
+    width: 11.3rem;
+  }
+  .amount-blank :global(.field) {
+    width: 4.25rem;
   }
   .mac {
     text-align: right;
@@ -201,7 +226,7 @@
       grid-template-columns: minmax(0, 1fr);
     }
     .nums {
-      grid-template-columns: 4.5rem minmax(2.5rem, 1fr) auto auto auto;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
     }
   }
   .totals {

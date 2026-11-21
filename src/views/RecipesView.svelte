@@ -9,7 +9,7 @@
 
   async function addRecipe() {
     const id = uid();
-    plan.recipes.unshift({ id, name: '', servings: 1, lines: [{ food: '', amount: null }], notes: '' });
+    plan.recipes.unshift({ id, name: '', servings: 1, lines: [{ food: '', amount: null, measure: null }], notes: '' });
     openId = id;
     await tick();
     const input = document.querySelector<HTMLInputElement>(`#recipe-${id} .name`);

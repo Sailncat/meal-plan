@@ -21,7 +21,7 @@
 
   async function addFood() {
     const id = uid();
-    plan.foods.push({ id, name: '', unit: 'g', per: 100, nut: {}, note: '', supplement: false });
+    plan.foods.push({ id, name: '', unit: 'g', per: 100, nut: {}, note: '', supplement: false, measures: [], countBy: null });
     q = '';
     openId = id;
     await tick();
@@ -35,7 +35,7 @@
   <h1 class="page-title">Foods</h1>
   <button class="btn primary" onclick={addFood}>+ Add food</button>
 </div>
-<p class="note">Copy the values from the label: per 100 g, or per piece, like 1 egg. Tap a food to edit it.</p>
+<p class="note">Tap a food to edit its label values, or how it’s counted, like 1 egg = 60 g.</p>
 
 {#if plan.foods.length > 6}
   <input class="field search" type="search" placeholder="Search {plan.foods.length} foods" aria-label="Search foods" bind:value={q} />
