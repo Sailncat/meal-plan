@@ -6,6 +6,7 @@
   import FoodsView from './views/FoodsView.svelte';
   import NutrientsView from './views/NutrientsView.svelte';
   import SettingsView from './views/SettingsView.svelte';
+  import MeView from './views/MeView.svelte';
   import Welcome from './views/Welcome.svelte';
   import Toast from './components/Toast.svelte';
 
@@ -14,12 +15,15 @@
     { id: 'recipes', label: 'Recipes', icon: 'M4 11h16M5 11a7 7 0 0 0 14 0M9 20h6M8.5 7c-1-1.2 1-2.2 0-3.5M12 7c-1-1.2 1-2.2 0-3.5M15.5 7c-1-1.2 1-2.2 0-3.5' },
     { id: 'foods', label: 'Foods', icon: 'M12 7c-3-2-8-1-8 5 0 5 3.5 9 6 9 1 0 1.5-.5 2-.5s1 .5 2 .5c2.5 0 6-4 6-9 0-6-5-7-8-5zM12 7c0-2 1-4 3-4' },
     { id: 'nutrients', label: 'Nutrients', icon: 'M5 20V10M10 20V4M15 20v-7M20 20v-11M3 20h18' },
-    { id: 'options', label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.8 1.7 1l.4 2.5h4l.4-2.5c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.4z' },
+    { id: 'me', label: 'Me', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c.8-3.6 3.9-6 7.5-6s6.7 2.4 7.5 6' },
   ] as const;
-  type ViewId = (typeof VIEWS)[number]['id'];
+  // Settings lives inside the Me tab, so it has a route but no button of its own.
+  type ViewId = (typeof VIEWS)[number]['id'] | 'options';
+  const current = (v: ViewId, id: string) => v === id || (v === 'options' && id === 'me');
 
   const fromHash = (): ViewId => {
     const h = location.hash.slice(1);
+    if (h === 'options') return 'options';
     return (VIEWS.find((v) => v.id === h)?.id ?? 'plan') as ViewId;
   };
   let view = $state<ViewId>(fromHash());
@@ -59,7 +63,7 @@
     {#if store.plan}
       <nav class="tabs" aria-label="Sections">
         {#each VIEWS as v (v.id)}
-          <a href="#{v.id}" aria-current={view === v.id ? 'page' : undefined}>{v.label}</a>
+          <a href="#{v.id}" aria-current={current(view, v.id) ? 'page' : undefined}>{v.label}</a>
         {/each}
       </nav>
     {/if}
@@ -80,6 +84,8 @@
     <FoodsView />
   {:else if view === 'nutrients'}
     <NutrientsView />
+  {:else if view === 'me'}
+    <MeView />
   {:else}
     <SettingsView />
   {/if}
@@ -88,7 +94,7 @@
 {#if store.plan}
   <nav class="bottom" aria-label="Sections">
     {#each VIEWS as v (v.id)}
-      <a href="#{v.id}" aria-current={view === v.id ? 'page' : undefined}>
+      <a href="#{v.id}" aria-current={current(view, v.id) ? 'page' : undefined}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d={v.icon} /></svg>
         <span>{v.label}</span>
       </a>

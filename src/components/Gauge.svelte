@@ -8,14 +8,23 @@
     unit: string;
     low: number;
     high: number;
+    /** Going over the top of the band is fine (protein), so it isn't shown as a warning. */
+    overOk?: boolean;
   }
-  let { name, value, unit, low, high }: Props = $props();
+  let { name, value, unit, low, high, overOk = false }: Props = $props();
 
   const max = $derived(Math.max(high * 1.3, value * 1.1, 1));
   const pct = (x: number) => Math.max(0, Math.min(100, (x / max) * 100));
-  const status = $derived(bandStatus(value, low, high));
+  const raw = $derived(bandStatus(value, low, high));
+  const status = $derived(raw === 'over' && overOk ? 'above' : raw);
   const note = $derived(
-    status === 'under' ? `${fmt0(low - value)} ${unit} below target` : status === 'over' ? `${fmt0(value - high)} ${unit} over target` : 'On target',
+    status === 'under'
+      ? `${fmt0(low - value)} ${unit} below target`
+      : status === 'over'
+        ? `${fmt0(value - high)} ${unit} over target`
+        : status === 'above'
+          ? `${fmt0(value - high)} ${unit} above target`
+          : 'On target',
   );
 </script>
 
@@ -87,6 +96,12 @@
   }
   .fill.under {
     background: var(--under);
+  }
+  .fill.above {
+    background: var(--ok);
+  }
+  .foot .above {
+    color: var(--muted);
   }
   .foot {
     font-size: 0.85rem;

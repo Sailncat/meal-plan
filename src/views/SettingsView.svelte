@@ -3,8 +3,6 @@
   import { PlanFormatError, toPlan } from '../lib/migrate';
   import { uid } from '../lib/num';
   import { showToast, store, undoable } from '../lib/store.svelte';
-  import NumInput from '../components/NumInput.svelte';
-  import { E, EU, fromE } from '../lib/display';
 
   const plan = $derived(store.plan!);
   let fileInput: HTMLInputElement | undefined = $state();
@@ -69,6 +67,7 @@
   }
 </script>
 
+<a class="back" href="#me">‹ Me</a>
 <h1 class="page-title">Settings</h1>
 
 <h2 class="bar">Meals</h2>
@@ -117,20 +116,6 @@
     Switching only changes how amounts are shown; your plan is always saved in metric. Food labels on the Foods tab stay in grams and
     millilitres, like on the packet. Pieces and spoons (3 eggs, 1 tbsp) look the same either way.
   </p>
-</div>
-
-<h2 class="bar">Daily targets</h2>
-<div class="panel pad">
-  <div class="targets">
-    <span></span><span class="label">Low</span><span class="label">High</span>
-    <span>{EU() === 'kJ' ? 'Energy' : 'Calories'} ({EU()})</span>
-    <NumInput value={Math.round(E(plan.targets.kcalLow))} label="Lowest daily {EU()}" onchange={(v) => (plan.targets.kcalLow = fromE(v ?? 0))} />
-    <NumInput value={Math.round(E(plan.targets.kcalHigh))} label="Highest daily {EU()}" onchange={(v) => (plan.targets.kcalHigh = fromE(v ?? 0))} />
-    <span>Protein (g)</span>
-    <NumInput value={plan.targets.proteinLow} label="Lowest daily protein" onchange={(v) => (plan.targets.proteinLow = v ?? 0)} />
-    <NumInput value={plan.targets.proteinHigh} label="Highest daily protein" onchange={(v) => (plan.targets.proteinHigh = v ?? 0)} />
-  </div>
-  <p class="note">A day's {EU() === 'kJ' ? 'energy' : 'calories'} show green inside this range, red above it and gold below. Protein shows gold below your low target.</p>
 </div>
 
 <h2 class="bar">Backup</h2>
@@ -193,12 +178,15 @@
     flex: 1;
     font-weight: 600;
   }
-  .targets {
-    display: grid;
-    grid-template-columns: auto minmax(0, 7rem) minmax(0, 7rem);
-    gap: 0.5rem 0.75rem;
-    align-items: center;
-    max-width: 26rem;
+  .back {
+    display: inline-block;
+    margin-top: 0.25rem;
+    color: var(--muted);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .back:hover {
+    color: var(--ink);
   }
   .unit-row {
     display: grid;

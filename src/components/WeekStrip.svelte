@@ -4,6 +4,7 @@
   import { bandStatus } from '../lib/calc';
   import { store } from '../lib/store.svelte';
   import { E, EU } from '../lib/display';
+  import { targetsInUse } from '../lib/targets';
 
   interface Props {
     selected: number;
@@ -13,13 +14,13 @@
     onselect: (i: number) => void;
   }
   let { selected, today, kcal, protein, onselect }: Props = $props();
-  const t = $derived(store.plan!.targets);
+  const t = $derived(targetsInUse(store.plan!).targets);
 </script>
 
 <div class="strip" role="group" aria-label="Days of the week">
   {#each DAYS_SHORT as d, i (d)}
-    {@const ks = bandStatus(kcal[i], t.kcalLow, t.kcalHigh)}
-    {@const ps = protein[i] < t.proteinLow ? 'under' : ''}
+    {@const ks = bandStatus(kcal[i], t.kcal.low, t.kcal.high)}
+    {@const ps = protein[i] < t.protein.low ? 'under' : ''}
     <button
       class="day"
       class:sel={i === selected}

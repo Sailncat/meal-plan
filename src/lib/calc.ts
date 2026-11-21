@@ -104,3 +104,27 @@ export function bandStatus(value: number, low: number, high: number): Status {
   if (value < low) return 'under';
   return 'ok';
 }
+
+/** A day's total counting only foods that match `keep` (for upper limits that only cover supplements). */
+export function dayNutWhere(plan: Plan, day: Day, key: string, keep: (f: Food) => boolean): number {
+  let t = 0;
+  for (const id of day.supps) {
+    const f = foodById(plan, id);
+    if (f && keep(f)) t += foodNut(f, f.per, key);
+  }
+  for (const s of plan.slots) {
+    for (const e of day.meals[s.id] ?? []) {
+      const target = entryTarget(plan, e);
+      if (target?.kind === 'food') {
+        if (keep(target.food)) t += entryNut(plan, e, key);
+      } else if (target?.kind === 'recipe') {
+        const share = num(e.amount) / servingsOf(target.recipe);
+        for (const l of target.recipe.lines) {
+          const f = foodById(plan, l.food);
+          if (f && keep(f)) t += lineNut(plan, l, key) * share;
+        }
+      }
+    }
+  }
+  return t;
+}

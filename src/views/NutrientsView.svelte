@@ -1,11 +1,34 @@
 <script lang="ts">
   import { NUTRIENTS, type NutrientDef } from '../lib/nutrients';
-  import { foodById, perServing, weekFoodIds, weekNut } from '../lib/calc';
+  import { dayNut, dayNutWhere, foodById, perServing, weekFoodIds, weekNut } from '../lib/calc';
+  import { dailyCaps, dailyGoals, upperLimits, STANDARD_NAMES, type Person } from '../lib/references';
+  import { ageOf, targetsInUse } from '../lib/targets';
+  import { DAYS_SHORT } from '../lib/types';
   import { fmtN } from '../lib/num';
   import { store } from '../lib/store.svelte';
 
   const plan = $derived(store.plan!);
+  const prof = $derived(plan.profile);
   const GROUPS = ['Macros', 'Vitamins', 'Minerals'] as const;
+
+  // Goals fit the profile once it's complete; until then, a man of 25.
+  const use = $derived(targetsInUse(plan));
+  const kcalMid = $derived((use.targets.kcal.low + use.targets.kcal.high) / 2);
+  const fitted = $derived(!!use.worked);
+  const person = $derived<Person>(
+    fitted
+      ? { sex: prof.sex!, age: ageOf(prof.birthYear)!, stage: prof.sex === 'female' ? prof.stage : 'none', kcal: kcalMid }
+      : { sex: 'male', age: 25, stage: 'none', kcal: kcalMid },
+  );
+  const goals = $derived(dailyGoals(prof.standard, person));
+  const caps = $derived(dailyCaps(person));
+  const limits = $derived(upperLimits(prof.standard, person));
+  const who = $derived.by(() => {
+    if (!fitted) return 'a man aged 25, until your profile on the Me tab is complete';
+    const stage =
+      person.stage === 'breastfeeding' ? ', breastfeeding' : person.stage !== 'none' ? `, pregnant (trimester ${person.stage.slice(-1)})` : '';
+    return `a ${person.age}-year-old ${person.sex === 'male' ? 'man' : 'woman'}${stage}`;
+  });
 
   // Foods in this week's plan with no values beyond calories and protein.
   const missing = $derived(
@@ -15,27 +38,76 @@
       .map((f) => f!.name || 'Unnamed food'),
   );
 
+  /** A nutrient's daily goal: a band for carbs and fat, a maximum for salt, saturated fat and sugars, a minimum for the rest. */
+  function daily(k: string): { lo: number | null; hi: number | null } {
+    if (k === 'carbs' || k === 'fat') return { lo: use.targets[k].low, hi: use.targets[k].high };
+    if (k in caps) return { lo: null, hi: caps[k] };
+    return { lo: goals[k] ?? null, hi: null };
+  }
+
+  // Days that go over a safe upper limit. Limits that only cover supplements count only foods marked as supplements.
+  const overs = $derived(
+    Object.entries(limits)
+      .map(([k, lim]) => {
+        const vals = plan.week.map((d) => (lim.supplementsOnly ? dayNutWhere(plan, d, k, (f) => f.supplement) : dayNut(plan, d, k)));
+        const days = vals.flatMap((v, i) => (v > lim.ul + 1e-9 ? [i] : []));
+        return { k, lim, days, max: Math.max(...vals), def: NUTRIENTS.find((n) => n.k === k)! };
+      })
+      .filter((o) => o.days.length && o.def),
+  );
+  const overKeys = $derived(new Set(overs.map((o) => o.k)));
+  const dayList = (days: number[]) => (days.length === 7 ? 'every day' : days.map((i) => DAYS_SHORT[i]).join(', '));
+
   function row(n: NutrientDef) {
     const wk = weekNut(plan, n.k);
-    const lo = n.min != null ? n.min * 7 : null;
-    const hi = n.max != null ? n.max * 7 : null;
+    const d = daily(n.k);
+    const lo = d.lo != null ? d.lo * 7 : null;
+    const hi = d.hi != null ? d.hi * 7 : null;
     const scale = Math.max((hi ?? lo ?? 1) * 1.25, wk * 1.05, 0.0001);
     const pct = (x: number) => Math.max(0, Math.min(100, (x / scale) * 100));
     let cls = 'ok';
     if (lo != null && wk < lo) cls = 'under';
     if (hi != null && wk > hi) cls = 'over';
-    const goal = lo != null && hi != null ? `goal ${fmtN(lo)}–${fmtN(hi)}` : lo != null ? `goal ${fmtN(lo)}` : `limit ${fmtN(hi!)}`;
-    const ref = (lo ?? hi)!;
-    return { wk, cls, goal, pctOfRef: Math.round((wk / ref) * 100), bandL: lo != null ? pct(lo) : 0, bandR: hi != null ? pct(hi) : 100, fill: pct(wk) };
+    if (overKeys.has(n.k)) cls = 'over';
+    const goal = lo != null && hi != null ? `goal ${fmtN(lo)}–${fmtN(hi)}` : lo != null ? `goal ${fmtN(lo)}` : hi != null ? `limit ${fmtN(hi)}` : 'no goal';
+    const ref = lo ?? hi;
+    return {
+      wk,
+      cls,
+      goal,
+      pctOfRef: ref ? Math.round((wk / ref) * 100) : null,
+      bandL: lo != null ? pct(lo) : 0,
+      bandR: hi != null ? pct(hi) : 100,
+      fill: pct(wk),
+    };
   }
 </script>
 
 <h1 class="page-title">Nutrients</h1>
 <p class="note">
-  Your week from the Plan tab, against weekly goals for a man aged 19–30 (US Dietary Reference Intakes; WHO limits for salt, saturated fat
-  and sugar). Goals from your own age, body and aim arrive with the profile in a later update. Sugars counts all sugars, including the
-  natural sugar in milk and fruit, so it reads higher than WHO's free-sugar limit would. Treat the totals as a good estimate.
+  Your week from the Plan tab, against {STANDARD_NAMES[prof.standard]} goals for {who}. Carbs and fat use your daily targets; salt, saturated
+  fat and sugars use WHO limits. Sugars counts all sugars, including the natural sugar in milk and fruit, so it reads higher than WHO's
+  free-sugar limit would. Treat the totals as a good estimate.
 </p>
+
+{#if overs.length}
+  <section class="ul" aria-labelledby="ul-h">
+    <h2 id="ul-h">Over a safe upper limit</h2>
+    <ul>
+      {#each overs as o (o.k)}
+        <li>
+          <b>{o.def.l}:</b> up to {fmtN(o.max)} {o.def.u} a day ({dayList(o.days)}). The {prof.standard === 'eu' ? 'EU' : 'US'}
+          {o.lim.safeLevel ? 'safe level' : 'upper limit'} is {fmtN(o.lim.ul)} {o.def.u} a day{o.lim.supplementsOnly ? ' from supplements' : ''}.
+        </li>
+      {/each}
+    </ul>
+    <p class="note">
+      An upper limit is the most you can have every day, long term, without expecting harm. Going over now and then isn't a worry, but a
+      supplement that does it every day is worth a look, ideally with a pharmacist or doctor.
+      {#if overs.some((o) => o.lim.supplementsOnly)}Limits marked “from supplements” only count foods marked as supplements.{/if}
+    </p>
+  </section>
+{/if}
 
 {#if missing.length}
   <p class="missing">No vitamin or mineral values yet for {missing.join(', ')}, so they count as zero below. Fill them in on the Foods tab under “More nutrients”.</p>
@@ -47,7 +119,10 @@
     {#each NUTRIENTS.filter((n) => n.g === g) as n (n.k)}
       {@const r = row(n)}
       <div class="nut">
-        <div class="nm">{n.l}<small>{r.pctOfRef}%</small></div>
+        <div class="nm">
+          {n.l}{#if r.pctOfRef != null}<small>{r.pctOfRef}%</small>{/if}
+          {#if overKeys.has(n.k)}<span class="tag">over limit</span>{/if}
+        </div>
         <div class="track" role="img" aria-label="{n.l}: {fmtN(r.wk)} {n.u} this week, {r.goal} {n.u}">
           <div class="band" style:left="{r.bandL}%" style:width="{r.bandR - r.bandL}%"></div>
           <div class="fill {r.cls}" style:width="{r.fill}%"></div>
@@ -79,6 +154,35 @@
 </div>
 
 <style>
+  .ul {
+    margin: 1rem 0 0;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--over);
+    border-radius: 0.5rem;
+    background: var(--surface);
+  }
+  .ul h2 {
+    font-family: var(--display);
+    font-size: 1.15rem;
+    color: var(--over);
+  }
+  .ul ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.3rem;
+  }
+  .tag {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0 0.35rem;
+    border-radius: 0.3rem;
+    background: var(--over);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    vertical-align: 0.1em;
+  }
   .missing {
     margin: 1rem 0 0;
     padding: 0.6rem 0.9rem;

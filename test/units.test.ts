@@ -135,3 +135,31 @@ describe('loading plans with units', () => {
     expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual({ system: 'imperial', energy: 'kJ' });
   });
 });
+
+describe('body weight and height', async () => {
+  const { weightText, cmToFtIn, ftInToCm, kgToShown, shownToKg } = await import('../src/lib/units');
+  it('shows kg, or lb with stones in imperial', () => {
+    expect(weightText(80, 'metric')).toBe('80.0 kg');
+    expect(weightText(80, 'imperial')).toBe('176.4 lb (12 st 8)');
+    expect(shownToKg(kgToShown(80, 'imperial'), 'imperial')).toBeCloseTo(80, 10);
+  });
+  it('converts height', () => {
+    expect(cmToFtIn(183)).toEqual({ ft: 6, inch: 0 });
+    expect(cmToFtIn(170)).toEqual({ ft: 5, inch: 7 });
+    expect(ftInToCm(5, 11)).toBeCloseTo(180.34, 2);
+  });
+});
+
+describe('supplement-only totals', async () => {
+  const { dayNutWhere, dayNut } = await import('../src/lib/calc');
+  it('counts only supplements when asked, through recipes too', () => {
+    const p = emptyPlan();
+    p.foods.push(milk, tablet);
+    p.recipes.push({ id: 'r', name: 'Drink', servings: 2, notes: '', lines: [{ food: 'd3', amount: 2, measure: null }, { food: 'milk', amount: 200, measure: null }] });
+    p.week[0].supps = ['d3'];
+    p.week[0].meals.breakfast = [{ id: 'e', ref: 'r:r', amount: 1, measure: null }];
+    const supps = dayNutWhere(p, p.week[0], 'vitD', (f) => f.supplement);
+    expect(supps).toBeCloseTo(50 + 50, 6); // ticked tablet + half of the recipe's 2 tablets
+    expect(dayNut(p, p.week[0], 'vitD')).toBeCloseTo(100, 6);
+  });
+});

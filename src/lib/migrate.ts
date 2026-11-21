@@ -1,12 +1,64 @@
 // Turns anything that looks like a plan into a clean, current Plan:
 // the old Claude artifact's format (v1), this app's own backups (v2), or a fresh start.
 
-import type { Day, Entry, Food, Plan, Recipe, Slot, Targets } from './types';
+import type { Activity, Aim, Day, Entry, Food, MacroKey, Plan, Profile, Range, Recipe, Slot, Stage, Targets, WeightEntry } from './types';
 import { DAYS } from './types';
 import { num, uid } from './num';
 import { DEFAULT_SETTINGS, measureOf } from './units';
 
-export const DEFAULT_TARGETS: Targets = { kcalLow: 2200, kcalHigh: 2300, proteinLow: 160, proteinHigh: 180 };
+const noCustom = (): Record<MacroKey, boolean> => ({ kcal: false, protein: false, carbs: false, fat: false });
+
+export const defaultTargets = (): Targets => ({
+  kcal: { low: 2200, high: 2300 },
+  protein: { low: 160, high: 180 },
+  carbs: { low: 250, high: 350 },
+  fat: { low: 55, high: 90 },
+  custom: noCustom(),
+});
+
+export const defaultProfile = (): Profile => ({
+  sex: null,
+  birthYear: null,
+  heightCm: null,
+  activity: 'moderate',
+  aim: 'maintain',
+  pace: 0.25,
+  stage: 'none',
+  standard: 'eu',
+});
+
+const ACTIVITIES: Activity[] = ['sedentary', 'light', 'moderate', 'active', 'very'];
+const AIMS: Aim[] = ['lose', 'maintain', 'gain'];
+const STAGES: Stage[] = ['none', 'pregnant1', 'pregnant2', 'pregnant3', 'breastfeeding'];
+const pick = <T extends string>(v: unknown, from: readonly T[], fallback: T): T => (from.includes(v as T) ? (v as T) : fallback);
+const posOrNull = (v: unknown) => (v != null && num(v) > 0 ? num(v) : null);
+
+function rangeOf(r: unknown, fallback: Range): Range {
+  if (!isObj(r)) return { ...fallback };
+  const low = r.low != null ? num(r.low) : fallback.low;
+  const high = r.high != null ? num(r.high) : fallback.high;
+  return { low: Math.min(low, high), high: Math.max(low, high) };
+}
+
+function targetsOf(t: Record<string, any>): Targets {
+  const d = defaultTargets();
+  // Plans from before Phase 3 kept calories and protein as four flat numbers.
+  if (t.kcalLow != null || t.proteinLow != null) {
+    return {
+      ...d,
+      kcal: rangeOf({ low: t.kcalLow ?? d.kcal.low, high: t.kcalHigh ?? d.kcal.high }, d.kcal),
+      protein: rangeOf({ low: t.proteinLow ?? d.protein.low, high: t.proteinHigh ?? d.protein.high }, d.protein),
+    };
+  }
+  const c = isObj(t.custom) ? t.custom : {};
+  return {
+    kcal: rangeOf(t.kcal, d.kcal),
+    protein: rangeOf(t.protein, d.protein),
+    carbs: rangeOf(t.carbs, d.carbs),
+    fat: rangeOf(t.fat, d.fat),
+    custom: { kcal: !!c.kcal, protein: !!c.protein, carbs: !!c.carbs, fat: !!c.fat },
+  };
+}
 
 export const DEFAULT_SLOTS: Slot[] = [
   { id: 'breakfast', name: 'Breakfast' },
@@ -27,7 +79,9 @@ export function emptyPlan(): Plan {
     recipes: [],
     slots,
     week: DAYS.map(() => emptyDay(slots)),
-    targets: { ...DEFAULT_TARGETS },
+    targets: defaultTargets(),
+    profile: defaultProfile(),
+    weights: [],
     meta: { lastBackup: null, backupSnoozedUntil: null },
   };
 }
@@ -101,13 +155,25 @@ export function normalize(p: Record<string, any>): Plan {
     const supps = Array.isArray(d.supps) ? [...new Set<string>(d.supps.filter((x: unknown) => typeof x === 'string' && foodIds.has(x)))] : [];
     return { meals, supps };
   });
-  const t = isObj(p.targets) ? p.targets : {};
-  const targets: Targets = {
-    kcalLow: t.kcalLow != null ? num(t.kcalLow) : DEFAULT_TARGETS.kcalLow,
-    kcalHigh: t.kcalHigh != null ? num(t.kcalHigh) : DEFAULT_TARGETS.kcalHigh,
-    proteinLow: t.proteinLow != null ? num(t.proteinLow) : DEFAULT_TARGETS.proteinLow,
-    proteinHigh: t.proteinHigh != null ? num(t.proteinHigh) : DEFAULT_TARGETS.proteinHigh,
+  const targets = targetsOf(isObj(p.targets) ? p.targets : {});
+  const pr = isObj(p.profile) ? p.profile : {};
+  const dp = defaultProfile();
+  const profile: Profile = {
+    sex: pr.sex === 'male' || pr.sex === 'female' ? pr.sex : null,
+    birthYear: posOrNull(pr.birthYear),
+    heightCm: posOrNull(pr.heightCm),
+    activity: pick(pr.activity, ACTIVITIES, dp.activity),
+    aim: pick(pr.aim, AIMS, dp.aim),
+    pace: posOrNull(pr.pace) ?? dp.pace,
+    stage: pick(pr.stage, STAGES, dp.stage),
+    standard: pr.standard === 'us' ? 'us' : 'eu',
   };
+  // One weight per day, oldest first.
+  const byDate = new Map<string, number>();
+  for (const w of Array.isArray(p.weights) ? p.weights : []) {
+    if (isObj(w) && typeof w.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w.date) && num(w.kg) > 0) byDate.set(w.date, num(w.kg));
+  }
+  const weights: WeightEntry[] = [...byDate].sort(([a], [b]) => a.localeCompare(b)).map(([date, kg]) => ({ date, kg }));
   const m = isObj(p.meta) ? p.meta : {};
   const st = isObj(p.settings) ? p.settings : {};
   return {
@@ -119,6 +185,8 @@ export function normalize(p: Record<string, any>): Plan {
     slots,
     week,
     targets,
+    profile,
+    weights,
     meta: { lastBackup: typeof m.lastBackup === 'string' ? m.lastBackup : null, backupSnoozedUntil: typeof m.backupSnoozedUntil === 'string' ? m.backupSnoozedUntil : null },
   };
 }

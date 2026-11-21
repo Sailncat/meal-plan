@@ -73,11 +73,48 @@ export interface Day {
   supps: string[];
 }
 
+export interface Range {
+  low: number;
+  high: number;
+}
+
+export type MacroKey = 'kcal' | 'protein' | 'carbs' | 'fat';
+
+/**
+ * Daily targets the user typed. They're used where `custom` is true, and for calories and protein
+ * until the profile is filled in. Otherwise the targets are worked out from the profile.
+ */
 export interface Targets {
-  kcalLow: number;
-  kcalHigh: number;
-  proteinLow: number;
-  proteinHigh: number;
+  kcal: Range;
+  protein: Range;
+  carbs: Range;
+  fat: Range;
+  custom: Record<MacroKey, boolean>;
+}
+
+export type Sex = 'male' | 'female';
+export type Activity = 'sedentary' | 'light' | 'moderate' | 'active' | 'very';
+export type Aim = 'lose' | 'maintain' | 'gain';
+export type Stage = 'none' | 'pregnant1' | 'pregnant2' | 'pregnant3' | 'breastfeeding';
+/** Which official tables the vitamin and mineral goals come from. */
+export type Standard = 'eu' | 'us';
+
+export interface Profile {
+  sex: Sex | null;
+  birthYear: number | null;
+  heightCm: number | null;
+  activity: Activity;
+  aim: Aim;
+  /** kg a week to lose or gain. */
+  pace: number;
+  stage: Stage;
+  standard: Standard;
+}
+
+export interface WeightEntry {
+  /** YYYY-MM-DD */
+  date: string;
+  kg: number;
 }
 
 export interface Meta {
@@ -103,6 +140,9 @@ export interface Plan {
   /** Monday to Sunday. */
   week: Day[];
   targets: Targets;
+  profile: Profile;
+  /** Oldest first. */
+  weights: WeightEntry[];
   meta: Meta;
 }
 

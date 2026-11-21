@@ -121,3 +121,25 @@ export function amountText(food: Food, amount: number | null, measureId: string 
 export const energyUnit = (s: Settings) => (s.energy === 'kJ' ? 'kJ' : 'kcal');
 export const toEnergy = (kcal: number, s: Settings) => (s.energy === 'kJ' ? kcal * KJ_PER_KCAL : kcal);
 export const fromEnergy = (v: number, s: Settings) => (s.energy === 'kJ' ? v / KJ_PER_KCAL : v);
+
+// ---------- body weight and height ----------
+
+/** Body weight as typed and shown: kg, or lb in imperial. */
+export const weightUnit = (system: Settings['system']) => (system === 'imperial' ? 'lb' : 'kg');
+export const kgToShown = (kg: number, system: Settings['system']) => (system === 'imperial' ? kg / KG_PER_LB : kg);
+export const shownToKg = (v: number, system: Settings['system']) => (system === 'imperial' ? v * KG_PER_LB : v);
+
+/** "80.0 kg", or "176.4 lb (12 st 8)" in imperial, since UK scales read in stones. */
+export function weightText(kg: number, system: Settings['system']): string {
+  if (system !== 'imperial') return `${kg.toFixed(1)} kg`;
+  const lb = kg / KG_PER_LB;
+  const st = Math.floor(Math.round(lb) / 14);
+  return `${lb.toFixed(1)} lb (${st} st ${Math.round(lb) - st * 14})`;
+}
+
+/** 183 cm → 6 ft 0 in. */
+export function cmToFtIn(cm: number): { ft: number; inch: number } {
+  const total = Math.round(cm / CM_PER_IN);
+  return { ft: Math.floor(total / 12), inch: total % 12 };
+}
+export const ftInToCm = (ft: number, inch: number) => (ft * 12 + inch) * CM_PER_IN;

@@ -4,6 +4,7 @@
   import { fmt0, fold, uid } from '../lib/num';
   import { E, EU, amountOf } from '../lib/display';
   import { baseAmount, measureOf } from '../lib/units';
+  import { targetsInUse } from '../lib/targets';
   import type { Food } from '../lib/types';
   import { store } from '../lib/store.svelte';
   import WeekStrip from '../components/WeekStrip.svelte';
@@ -19,6 +20,9 @@
 
   const kcalByDay = $derived(plan.week.map((d) => dayNut(plan, d, 'kcal')));
   const proteinByDay = $derived(plan.week.map((d) => dayNut(plan, d, 'protein')));
+  const t = $derived(targetsInUse(plan).targets);
+  const carbs = $derived(dayNut(plan, day, 'carbs'));
+  const fat = $derived(dayNut(plan, day, 'fat'));
 
   const supplements = $derived(
     plan.foods.filter((f) => f.supplement).sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })),
@@ -104,8 +108,10 @@
   </h1>
 
   <div class="gauges">
-    <Gauge name={EU() === 'kJ' ? 'Energy' : 'Calories'} value={E(kcalByDay[selected])} unit={EU()} low={E(plan.targets.kcalLow)} high={E(plan.targets.kcalHigh)} />
-    <Gauge name="Protein" value={proteinByDay[selected]} unit="g" low={plan.targets.proteinLow} high={plan.targets.proteinHigh} />
+    <Gauge name={EU() === 'kJ' ? 'Energy' : 'Calories'} value={E(kcalByDay[selected])} unit={EU()} low={E(t.kcal.low)} high={E(t.kcal.high)} />
+    <Gauge name="Protein" value={proteinByDay[selected]} unit="g" low={t.protein.low} high={t.protein.high} overOk />
+    <Gauge name="Carbs" value={carbs} unit="g" low={t.carbs.low} high={t.carbs.high} />
+    <Gauge name="Fat" value={fat} unit="g" low={t.fat.low} high={t.fat.high} />
   </div>
 
   <div class="slots">
