@@ -6,9 +6,9 @@
 // Run by .github/workflows/basic-foods.yml, since the app's own build has no need to download anything.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 /** The download page has used a few file names for the same release over the years; the first that answers wins. */
 export const SOURCE_URLS = [
@@ -187,6 +187,7 @@ async function main() {
   }
   const data = buildFromCsvDir(dir);
   const json = JSON.stringify(data);
+  mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, json);
   console.log(`Wrote ${data.foods.length} foods to ${out} (${(json.length / 1024).toFixed(0)} KB)`);
 }
