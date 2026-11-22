@@ -13,6 +13,11 @@ export default defineConfig(({ mode }) => ({
       mode === 'preview' ? [{ find: /^\.\/fonts$/, replacement: fileURLToPath(new URL('./src/fonts.preview.ts', import.meta.url)) }] : [],
   },
   build: { outDir: mode === 'preview' ? 'dist-preview' : 'dist' },
+  // When this copy of the app was built, shown under About so it's clear which version a device is running.
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __BUILD_COMMIT__: JSON.stringify((process.env.GITHUB_SHA ?? '').slice(0, 7)),
+  },
   plugins: [
     svelte(),
     VitePWA({

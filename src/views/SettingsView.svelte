@@ -18,6 +18,8 @@
       : null,
   );
 
+  const builtAt = new Date(__BUILD_TIME__).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
   // ---------- look ----------
   // Swatches show the colours of the mode the app is in now.
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -281,7 +283,9 @@
 
 <h2 class="bar">About</h2>
 <div class="panel pad about">
-  <p>Meal plan · test build{import.meta.env.VITE_PREVIEW ? ' (preview)' : ''}</p>
+  <p>
+    Meal plan · test build{import.meta.env.VITE_PREVIEW ? ' (preview)' : ''} · updated {builtAt}{__BUILD_COMMIT__ ? ` (${__BUILD_COMMIT__})` : ''}
+  </p>
   <p class="note">
     {#if store.storage === 'memory'}
       This browser won't let the app save, so changes are lost when you close it. Save a backup file before you go.
