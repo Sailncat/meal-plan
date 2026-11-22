@@ -94,28 +94,65 @@ export class RateLimit {
 const searchLimit = new RateLimit(10);
 const productLimit = new RateLimit(15);
 
-async function get(url: string, limit: RateLimit, fetcher: typeof fetch): Promise<any> {
-  const wait = limit.take();
-  if (wait) throw new OffError('busy', `Open Food Facts allows only a few searches a minute. Try again in ${Math.ceil(wait / 1000)} s.`);
-  let res: Response;
-  try {
-    res = await fetcher(url);
-  } catch {
-    throw new OffError(navigator.onLine === false ? 'offline' : 'failed', navigator.onLine === false ? 'You’re offline. Packaged foods need a connection; basic foods still work.' : 'Couldn’t reach Open Food Facts. Try again in a moment.');
-  }
-  if (res.status === 429) throw new OffError('busy', 'Open Food Facts is busy. Try again in a minute.');
-  if (res.status === 404) return { status: 0 };
-  if (!res.ok) throw new OffError('failed', `Open Food Facts answered with an error (${res.status}). Try again in a moment.`);
-  try {
-    return await res.json();
-  } catch {
-    throw new OffError('failed', 'Open Food Facts sent something unreadable. Try again in a moment.');
+interface GetOptions {
+  /** How many times to try. Search is flaky on their side (see below), so it gets three. */
+  tries: number;
+  /** Wait before the first retry, doubled each time. 0 in tests. */
+  delayMs: number;
+  /** What to say when every try failed. */
+  gaveUp: string;
+}
+
+const OFFLINE = 'You’re offline. Packaged foods need a connection; basic foods still work.';
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Open Food Facts sheds load: its search answers about half of requests with a quick 503, and those error pages
+ * carry no CORS header, so the browser only sees "failed to fetch". Both look the same here, so both get retried
+ * after a short pause. Every try counts against the rate limit.
+ */
+async function get(url: string, limit: RateLimit, fetcher: typeof fetch, opts: GetOptions): Promise<any> {
+  for (let attempt = 1; ; attempt++) {
+    const wait = limit.take();
+    if (wait) throw new OffError('busy', `Open Food Facts allows only a few searches a minute. Try again in ${Math.ceil(wait / 1000)} s.`);
+    const last = attempt >= opts.tries;
+    const retry = () => sleep(opts.delayMs * 2 ** (attempt - 1) + Math.random() * opts.delayMs * 0.3);
+    let res: Response;
+    try {
+      res = await fetcher(url, { signal: AbortSignal.timeout(12_000) });
+    } catch {
+      if (navigator.onLine === false) throw new OffError('offline', OFFLINE);
+      if (!last) {
+        await retry();
+        continue;
+      }
+      throw new OffError('failed', opts.gaveUp);
+    }
+    if (res.status === 429) throw new OffError('busy', 'Open Food Facts is busy. Try again in a minute.');
+    if (res.status === 404) return { status: 0 };
+    if (res.status >= 500 && !last) {
+      await retry();
+      continue;
+    }
+    if (!res.ok) throw new OffError('failed', opts.gaveUp);
+    try {
+      return await res.json();
+    } catch {
+      throw new OffError('failed', 'Open Food Facts sent something unreadable. Try again in a moment.');
+    }
   }
 }
 
+/** Wait before a retry; tests set it to 0. */
+export const retryDelay = { ms: 700 };
+
 export async function offProduct(barcode: string, fetcher: typeof fetch = fetch): Promise<OffProduct> {
   const code = barcode.replace(/\D/g, '');
-  const data = await get(`${BASE}/api/v2/product/${code}?fields=${FIELDS}&${APP}`, productLimit, fetcher);
+  const data = await get(`${BASE}/api/v2/product/${code}?fields=${FIELDS}&${APP}`, productLimit, fetcher, {
+    tries: 2,
+    delayMs: retryDelay.ms,
+    gaveUp: 'Couldn’t reach Open Food Facts. Try again in a moment.',
+  });
   if (data.status !== 1 || !data.product) throw new OffError('notfound', `Barcode ${code} isn’t in Open Food Facts yet.`);
   return { ...data.product, code: String(data.product.code ?? code) };
 }
@@ -133,7 +170,11 @@ export async function offSearch(query: string, country: string, page = 1, fetche
     params.set('tag_contains_0', 'contains');
     params.set('tag_0', country);
   }
-  const data = await get(`${BASE}/cgi/search.pl?${params}&${APP}`, searchLimit, fetcher);
+  const data = await get(`${BASE}/cgi/search.pl?${params}&${APP}`, searchLimit, fetcher, {
+    tries: 3,
+    delayMs: retryDelay.ms,
+    gaveUp: 'Open Food Facts’ search is overloaded right now, which happens a lot. Try again in a minute, or scan the barcode instead; that part works even when search doesn’t.',
+  });
   const products = (Array.isArray(data.products) ? data.products : []).filter((p: OffProduct) => p && p.code && offName(p));
   return { count: Number(data.count) || products.length, products };
 }

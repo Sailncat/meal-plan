@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { blankFood, fillBlanks, foodFromDraft, libraryMatch, nounOf, portionName, pushRecent, RECENT_MAX, toggleFavourite } from '../src/lib/foods';
 import { basicDraft, loadBasic, parseBasic, queryTokens, resetBasic, searchBasic } from '../src/lib/basicFoods';
-import { offDraft, offNutrients, offProduct, offSearch, OffError, RateLimit, servingPortion, type OffProduct } from '../src/lib/off';
+import { offDraft, offNutrients, offProduct, offSearch, OffError, RateLimit, retryDelay, servingPortion, type OffProduct } from '../src/lib/off';
+
+retryDelay.ms = 0;
 import { emptyPlan, normalize } from '../src/lib/migrate';
 import { amountText } from '../src/lib/units';
 
@@ -96,13 +98,32 @@ describe('Open Food Facts requests', () => {
     await expect(offProduct('123', ok({}, 404))).rejects.toMatchObject({ kind: 'notfound' });
   });
 
-  it('turns network trouble into a readable error', async () => {
+  it('turns network trouble into a readable error, after retrying', async () => {
     const down = vi.fn(async () => {
       throw new TypeError('Failed to fetch');
     });
     await expect(offProduct('1', down)).rejects.toBeInstanceOf(OffError);
+    expect(down).toHaveBeenCalledTimes(2);
     await expect(offProduct('1', ok({}, 503))).rejects.toMatchObject({ kind: 'failed' });
-    await expect(offProduct('1', ok({}, 429))).rejects.toMatchObject({ kind: 'busy' });
+    const busy = ok({}, 429);
+    await expect(offProduct('1', busy)).rejects.toMatchObject({ kind: 'busy' });
+    expect(busy).toHaveBeenCalledTimes(1); // told to slow down: no retry
+  });
+
+  it('retries a search that their server sheds (503, or a failed fetch with no CORS header)', async () => {
+    let n = 0;
+    const flaky = vi.fn(async () => {
+      n++;
+      if (n === 1) throw new TypeError('Failed to fetch');
+      if (n === 2) return new Response('', { status: 503 });
+      return new Response(JSON.stringify({ count: 1, products: [skyr] }));
+    });
+    const r = await offSearch('skyr', 'en:poland', 1, flaky);
+    expect(r.products.length).toBe(1);
+    expect(flaky).toHaveBeenCalledTimes(3);
+    const dead = vi.fn(async () => new Response('', { status: 503 }));
+    await expect(offSearch('skyr', '', 1, dead)).rejects.toThrow(/overloaded/);
+    expect(dead).toHaveBeenCalledTimes(3);
   });
 
   it('searches within a country, or everywhere', async () => {
