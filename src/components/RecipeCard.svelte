@@ -9,6 +9,7 @@
   import FoodSearch from './FoodSearch.svelte';
   import { measureOf } from '../lib/units';
   import { duplicateRecipe, minutesText, scaleRecipe, totalMinutes } from '../lib/recipes';
+  import { encodeShare, recipeText, shareData, shareLink } from '../lib/share';
   import { shrinkPhoto } from '../lib/photos';
   import { showToast } from '../lib/store.svelte';
   import { fmtN } from '../lib/num';
@@ -100,6 +101,32 @@
     const name = recipe.name || 'this recipe';
     undoable(`Scaled ${name} ×${fmtN(f)}: it now makes ${fmtN(recipe.servings * f)} serving${recipe.servings * f === 1 ? '' : 's'}`, () => scaleRecipe(recipe, f));
   }
+  // Readable text for anyone, and a link that adds it to another copy of the app.
+  async function share() {
+    const text = recipeText(plan, recipe);
+    let link = '';
+    try {
+      link = shareLink(await encodeShare(shareData(plan, recipe)));
+    } catch {
+      // Very old browsers can't compress the link; the text still goes.
+    }
+    const full = link ? `${text}\n\nOpen in Meal plan to add it to your recipes:\n${link}` : text;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: recipe.name || 'Recipe', text: full });
+        return;
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(full);
+      showToast('Recipe copied: paste it into a message');
+    } catch {
+      showToast('Couldn’t share or copy on this device');
+    }
+  }
+
   function duplicate() {
     const copy = duplicateRecipe(plan, recipe);
     onopen?.(copy.id);
@@ -258,6 +285,7 @@
         </div>
       {/if}
     </span>
+    <button class="btn small" onclick={share}>Share</button>
     <button class="btn small" onclick={duplicate}>Duplicate</button>
     <button class="btn small danger" onclick={remove}>Delete recipe</button>
   </div>

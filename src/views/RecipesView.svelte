@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { blankRecipe, findRecipes } from '../lib/recipes';
-  import { store } from '../lib/store.svelte';
+  import { store, ui } from '../lib/store.svelte';
   import RecipeCard from '../components/RecipeCard.svelte';
   import ImportRecipe from '../components/ImportRecipe.svelte';
 
@@ -21,6 +21,14 @@
     el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     return el;
   }
+
+  // Another screen asked for a recipe to be shown (a shared recipe that was just added).
+  $effect(() => {
+    const id = ui.showRecipe;
+    if (!id) return;
+    ui.showRecipe = null;
+    void show(id);
+  });
 
   async function addRecipe() {
     const r = blankRecipe();

@@ -1,14 +1,15 @@
 <script lang="ts">
-  import type { Aim, MacroKey, Range, Stage } from '../lib/types';
+  import type { MacroKey, Range } from '../lib/types';
   import { store, showToast, undoable } from '../lib/store.svelte';
-  import { ACTIVITIES, KCAL_FLOOR, PACES, ageOf, isPregnantOrFeeding, profileGaps, targetsInUse } from '../lib/targets';
-  import { KG_PER_LB, cmToFtIn, ftInToCm, kgToShown, shownToKg, weightText, weightUnit } from '../lib/units';
+  import { ACTIVITIES, KCAL_FLOOR, ageOf, isPregnantOrFeeding, profileGaps, targetsInUse } from '../lib/targets';
+  import { KG_PER_LB, cmToFtIn, kgToShown, shownToKg, weightText, weightUnit } from '../lib/units';
   import { STANDARD_NAMES } from '../lib/references';
   import { E, EU, fromE } from '../lib/display';
   import { fmt0 } from '../lib/num';
   import { longDate, shortDate, today } from '../lib/dates';
   import NumInput from '../components/NumInput.svelte';
   import WeightChart from '../components/WeightChart.svelte';
+  import ProfileForm from '../components/ProfileForm.svelte';
 
   const plan = $derived(store.plan!);
   const prof = $derived(plan.profile);
@@ -69,19 +70,6 @@
         ? 'stay the same weight'
         : `${prof.aim} ${paceText(prof.pace)} a week`,
   );
-  const STAGES: { id: Stage; label: string }[] = [
-    { id: 'none', label: 'Not pregnant or breastfeeding' },
-    { id: 'pregnant1', label: 'Pregnant, first trimester' },
-    { id: 'pregnant2', label: 'Pregnant, second trimester' },
-    { id: 'pregnant3', label: 'Pregnant, third trimester' },
-    { id: 'breastfeeding', label: 'Breastfeeding' },
-  ];
-  function setAim(a: Aim) {
-    prof.aim = a;
-    if (a === 'lose' && !(PACES.lose as readonly number[]).includes(prof.pace)) prof.pace = 0.5;
-    if (a === 'gain' && !(PACES.gain as readonly number[]).includes(prof.pace)) prof.pace = 0.25;
-  }
-
   // ---------- targets ----------
   const ROWS: { k: MacroKey; label: () => string; unit: () => string; show: (n: number) => number; back: (n: number) => number }[] = [
     { k: 'kcal', label: () => (EU() === 'kJ' ? 'Energy' : 'Calories'), unit: EU, show: E, back: fromE },
@@ -184,96 +172,7 @@
     {#if missing.length}
       <p class="note top">Fill in your {missing.join(', ').replace(/, ([^,]*)$/, ' and $1')} to get targets that fit you.</p>
     {/if}
-    <div class="form">
-      <div class="row">
-        <span class="label">Sex (for the formulas)</span>
-        <div class="seg" role="radiogroup" aria-label="Sex">
-          <button role="radio" aria-checked={prof.sex === 'male'} onclick={() => (prof.sex = 'male')}>Male</button>
-          <button
-            role="radio"
-            aria-checked={prof.sex === 'female'}
-            onclick={() => {
-              prof.sex = 'female';
-            }}>Female</button
-          >
-        </div>
-      </div>
-
-      <div class="pair">
-        <label>
-          <span class="label">Age</span>
-          <NumInput
-            value={age}
-            label="Age in years"
-            onchange={(v) => (prof.birthYear = v && v > 0 && v < 120 ? new Date().getFullYear() - Math.round(v) : null)}
-          />
-        </label>
-        {#if sys === 'imperial'}
-          <div class="height">
-            <span class="label">Height</span>
-            <span class="ftin">
-              <NumInput value={prof.heightCm ? ftIn.ft : null} label="Height, feet" onchange={(v) => (prof.heightCm = ftInToCm(v ?? 0, ftIn.inch) || null)} />
-              <span>ft</span>
-              <NumInput value={prof.heightCm ? ftIn.inch : null} label="Height, inches" onchange={(v) => (prof.heightCm = ftInToCm(ftIn.ft, v ?? 0) || null)} />
-              <span>in</span>
-            </span>
-          </div>
-        {:else}
-          <label>
-            <span class="label">Height (cm)</span>
-            <NumInput value={prof.heightCm} label="Height in cm" onchange={(v) => (prof.heightCm = v && v > 0 ? v : null)} />
-          </label>
-        {/if}
-      </div>
-
-      <label class="row">
-        <span class="label">How active you are</span>
-        <select class="field" value={prof.activity} onchange={(e) => (prof.activity = e.currentTarget.value as typeof prof.activity)}>
-          {#each ACTIVITIES as a (a.id)}
-            <option value={a.id}>{a.label}: {a.sub.toLowerCase()}</option>
-          {/each}
-        </select>
-      </label>
-
-      {#if prof.sex === 'female'}
-        <label class="row">
-          <span class="label">Pregnancy</span>
-          <select class="field" value={prof.stage} onchange={(e) => (prof.stage = e.currentTarget.value as Stage)}>
-            {#each STAGES as s (s.id)}
-              <option value={s.id}>{s.label}</option>
-            {/each}
-          </select>
-        </label>
-      {/if}
-
-      <div class="row">
-        <span class="label">Aim</span>
-        {#if special}
-          <p class="note flat">While you're pregnant or breastfeeding, the app aims to keep your weight steady and adds the extra energy and protein you need. Check your targets with your midwife or doctor.</p>
-        {:else}
-          <div class="seg three" role="radiogroup" aria-label="Aim">
-            <button role="radio" aria-checked={prof.aim === 'lose'} onclick={() => setAim('lose')}>Lose</button>
-            <button role="radio" aria-checked={prof.aim === 'maintain'} onclick={() => setAim('maintain')}>Stay the same</button>
-            <button role="radio" aria-checked={prof.aim === 'gain'} onclick={() => setAim('gain')}>Gain</button>
-          </div>
-          {#if prof.aim !== 'maintain'}
-            <select class="field pace" value={String(prof.pace)} onchange={(e) => (prof.pace = Number(e.currentTarget.value))} aria-label="How fast">
-              {#each PACES[prof.aim] as kg, i (kg)}
-                <option value={String(kg)}>{paceText(kg)} a week{i === 0 ? ' (slow)' : i === 1 ? ' (steady)' : ' (fast)'}</option>
-              {/each}
-            </select>
-          {/if}
-        {/if}
-      </div>
-
-      <div class="row">
-        <span class="label">Vitamin and mineral goals from</span>
-        <div class="seg" role="radiogroup" aria-label="Reference values">
-          <button role="radio" aria-checked={prof.standard === 'eu'} onclick={() => (prof.standard = 'eu')}>EU (EFSA)</button>
-          <button role="radio" aria-checked={prof.standard === 'us'} onclick={() => (prof.standard = 'us')}>US</button>
-        </div>
-      </div>
-    </div>
+    <ProfileForm />
   {/if}
 
   {#if gaps.includes('under18')}
@@ -366,7 +265,12 @@
 
 <a class="card settings-link" href="#options">
   <span>Settings</span>
-  <small>Meals, units, backup, clearing the week</small>
+  <small>Meals, day screen, look, units, backup</small>
+  <span class="chev" aria-hidden="true">›</span>
+</a>
+<a class="card settings-link" href="#help">
+  <span>Help and about</span>
+  <small>How the app works, your data, sending feedback</small>
   <span class="chev" aria-hidden="true">›</span>
 </a>
 
@@ -437,61 +341,16 @@
     margin: 0 0 0.3rem;
     line-height: 1.5;
   }
-  .form {
-    display: grid;
-    gap: 0.85rem;
-  }
-  .row {
-    display: grid;
-    gap: 0.3rem;
-  }
-  .pair {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-    gap: 0.75rem;
-  }
-  .ftin {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.35rem;
-    color: var(--muted);
-    font-weight: 600;
-  }
-  .seg {
-    display: inline-grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    max-width: 24rem;
-    padding: 0.2rem;
-    gap: 0.2rem;
-    border: 1px solid var(--line);
-    border-radius: 0.55rem;
-    background: var(--bg);
-  }
-  .seg.three {
-    max-width: 30rem;
-  }
-  .seg button {
-    min-height: 2.5rem;
-    padding: 0.3rem 0.6rem;
-    border: 0;
-    border-radius: 0.4rem;
-    background: transparent;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .seg button[aria-checked='true'] {
-    background: var(--bar);
-    color: var(--bar-ink);
-  }
-  .pace {
-    max-width: 18rem;
-    margin-top: 0.4rem;
-  }
-  .flat {
-    margin: 0;
-  }
+
+
+
+
+
+
+
+
+
+
   .top {
     margin: 0 0 0.75rem;
   }
@@ -582,6 +441,7 @@
   }
   .settings-link {
     display: grid;
+    margin-bottom: 0.6rem;
     grid-template-columns: 1fr auto;
     grid-template-areas: 'name chev' 'sub chev';
     align-items: center;

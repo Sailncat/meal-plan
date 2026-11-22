@@ -16,8 +16,19 @@ export const store = $state({
   storage: 'idb' as 'idb' | 'local' | 'memory',
 });
 
-/** What's on screen, shared by Plan, Prep, Shop and Nutrients: the chosen day, and with it the week. Not saved. */
-export const ui = $state({ date: today() });
+/** What's on screen, shared between screens. Not saved. */
+export const ui = $state({
+  /** The chosen day, and with it the week. */
+  date: today(),
+  /** A recipe someone shared by link, waiting to be added (the code from the link). */
+  shared: null as string | null,
+  /** A recipe the Recipes screen should open and scroll to. */
+  showRecipe: null as string | null,
+  /** First-run setup is open. */
+  setup: false,
+  /** The print view of the chosen week is open. */
+  printing: false,
+});
 
 // ---------- reading and writing the device copy ----------
 

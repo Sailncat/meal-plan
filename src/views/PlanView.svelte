@@ -151,6 +151,7 @@
             <button role="menuitem" onclick={() => useTemplate(tpl.id)}><b>Use “{tpl.name}”</b><small>A saved week</small></button>
           {/each}
           <button role="menuitem" disabled={empty} onclick={() => (naming = true)}><b>Save this week</b><small>To start other weeks from</small></button>
+          <button role="menuitem" disabled={empty} onclick={() => ((menu = false), (ui.printing = true))}><b>Print or save as PDF</b><small>The week, then its recipes</small></button>
           <button role="menuitem" disabled={empty} onclick={clearWeek}><b>Clear this week</b><small>You can undo it</small></button>
         {/if}
       </div>

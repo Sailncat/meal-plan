@@ -467,6 +467,19 @@ textarea.field {
   margin-top: 0.3rem;
 }
 
+/* Printing the week: only the print sheet goes on paper. */
+@page {
+  margin: 14mm;
+}
+@media print {
+  body.printing #app > :not(.print-sheet) {
+    display: none !important;
+  }
+  body.printing {
+    background: #fff;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -18,8 +18,6 @@
       : null,
   );
 
-  const builtAt = new Date(__BUILD_TIME__).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
   // ---------- look ----------
   // Swatches show the colours of the mode the app is in now.
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -281,26 +279,7 @@
   <p class="note">Add what a pack costs to each food on the Foods tab, and meals and days on the Plan tab show what they cost.</p>
 </div>
 
-<h2 class="bar">About</h2>
-<div class="panel pad about">
-  <p>
-    Meal plan · test build{import.meta.env.VITE_PREVIEW ? ' (preview)' : ''} · updated {builtAt}{__BUILD_COMMIT__ ? ` (${__BUILD_COMMIT__})` : ''}
-  </p>
-  <p class="note">
-    {#if store.storage === 'memory'}
-      This browser won't let the app save, so changes are lost when you close it. Save a backup file before you go.
-    {:else}
-      Your plan is stored on this device and never uploaded. The only things sent anywhere are packaged-food searches and barcode
-      lookups, which go to Open Food Facts. Searches pass through the app’s own relay on Cloudflare, which keeps no record of them.
-    {/if}
-  </p>
-  <p class="note">
-    Packaged food data © <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> contributors,
-    under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License</a>.
-    Basic food data from <a href="https://fdc.nal.usda.gov" target="_blank" rel="noopener">USDA FoodData Central</a> (SR Legacy, public
-    domain).
-  </p>
-</div>
+<a class="card help-link" href="#help">Help, your data and sending feedback <span aria-hidden="true">›</span></a>
 
 <style>
   .pad {
@@ -313,9 +292,6 @@
   .saved-h {
     display: block;
     margin-top: 1rem;
-  }
-  .about a {
-    color: inherit;
   }
   .top {
     margin-top: 0;
@@ -336,6 +312,20 @@
   .slots .field {
     flex: 1;
     font-weight: 600;
+  }
+  .help-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.2rem;
+    padding: 0.75rem 0.85rem;
+    color: inherit;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .help-link span {
+    font-size: 1.4rem;
+    color: var(--muted);
   }
   .back {
     display: inline-block;
@@ -458,9 +448,5 @@
   }
   .preview {
     color: var(--under);
-  }
-  .about p:first-child {
-    margin: 0;
-    font-weight: 600;
   }
 </style>

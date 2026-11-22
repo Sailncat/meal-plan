@@ -1,12 +1,18 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { load, queueSave, store } from './lib/store.svelte';
+  import { load, queueSave, store, ui } from './lib/store.svelte';
+  import { SHARE_PREFIX } from './lib/share';
+  import AddShared from './components/AddShared.svelte';
+  import PrintWeek from './components/PrintWeek.svelte';
+  import Setup from './components/Setup.svelte';
+  import { weekDates } from './lib/dates';
   import { applyLook } from './lib/look';
   import PlanView from './views/PlanView.svelte';
   import RecipesView from './views/RecipesView.svelte';
   import FoodsView from './views/FoodsView.svelte';
   import NutrientsView from './views/NutrientsView.svelte';
   import SettingsView from './views/SettingsView.svelte';
+  import HelpView from './views/HelpView.svelte';
   import MeView from './views/MeView.svelte';
   import Welcome from './views/Welcome.svelte';
   import Toast from './components/Toast.svelte';
@@ -18,10 +24,39 @@
     { id: 'nutrients', label: 'Nutrients', icon: 'M5 20V10M10 20V4M15 20v-7M20 20v-11M3 20h18' },
     { id: 'me', label: 'Me', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c.8-3.6 3.9-6 7.5-6s6.7 2.4 7.5 6' },
   ] as const;
-  // Settings lives inside the Me tab, so it has a route but no button of its own.
-  const INNER = { options: 'me' } as const;
+  // Settings and Help live inside the Me tab, so they have routes but no buttons of their own.
+  const INNER = { options: 'me', help: 'me' } as const;
   type ViewId = (typeof VIEWS)[number]['id'] | keyof typeof INNER;
   const current = (v: ViewId, id: string) => v === id || (v in INNER && INNER[v as keyof typeof INNER] === id);
+
+  // A shared recipe link (#add=…) is kept until there's a plan to add it to, even across a reload.
+  const SHARED_KEY = 'meal-plan-shared';
+  function takeShared() {
+    if (!location.hash.startsWith(SHARE_PREFIX)) return;
+    ui.shared = location.hash.slice(SHARE_PREFIX.length);
+    try {
+      sessionStorage.setItem(SHARED_KEY, ui.shared);
+    } catch {
+      /* kept in memory only */
+    }
+    history.replaceState(null, '', location.pathname + location.search + '#recipes');
+  }
+  takeShared();
+  if (!ui.shared) {
+    try {
+      ui.shared = sessionStorage.getItem(SHARED_KEY);
+    } catch {
+      /* no saved link */
+    }
+  }
+  function sharedDone() {
+    ui.shared = null;
+    try {
+      sessionStorage.removeItem(SHARED_KEY);
+    } catch {
+      /* nothing to clear */
+    }
+  }
 
   const fromHash = (): ViewId => {
     const h = location.hash.slice(1);
@@ -33,6 +68,7 @@
   onMount(() => {
     void load();
     const onHash = () => {
+      takeShared();
       view = fromHash();
       window.scrollTo({ top: 0 });
     };
@@ -102,6 +138,8 @@
     <NutrientsView />
   {:else if view === 'me'}
     <MeView />
+  {:else if view === 'help'}
+    <HelpView />
   {:else}
     <SettingsView />
   {/if}
@@ -116,6 +154,20 @@
       </a>
     {/each}
   </nav>
+{/if}
+
+{#if store.plan && ui.setup}
+  <Setup />
+{/if}
+
+{#if store.plan && ui.printing}
+  <PrintWeek dates={weekDates(ui.date, store.plan.settings.weekStart)} onclose={() => (ui.printing = false)} />
+{/if}
+
+{#if store.plan && ui.shared && !ui.setup}
+  {#key ui.shared}
+    <AddShared code={ui.shared} ondone={sharedDone} />
+  {/key}
 {/if}
 
 <Toast />
