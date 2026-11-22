@@ -114,6 +114,10 @@ export function toPlan(data: unknown, now = new Date()): Plan {
   throw new PlanFormatError('This file doesn’t contain a meal plan.');
 }
 
+const minutesOf = (v: unknown): number | null => (v != null && v !== '' && num(v) > 0 ? Math.round(num(v)) : null);
+/** Tags are lowercase and single-spaced, so "High protein" and "high  protein" are the same tag. */
+export const cleanTag = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 30);
+
 const packOf = (v: unknown): Pack | null =>
   isObj(v) && num(v.size) > 0 ? { size: num(v.size), price: v.price != null && v.price !== '' && num(v.price) >= 0 && Number.isFinite(parseFloat(String(v.price))) ? num(v.price) : null } : null;
 
@@ -149,6 +153,12 @@ export function normalize(p: Record<string, any>, now = new Date()): Plan {
       .filter(isObj)
       .map((l: any) => ({ food: str(l.food), amount: amountOf(l.amount), measure: measureFor(str(l.food), l.measure) })),
     notes: str(r.notes),
+    steps: (Array.isArray(r.steps) ? r.steps : []).filter((x: unknown) => typeof x === 'string' && x.trim()).map((x: string) => x.trim()),
+    ...(typeof r.photo === 'string' && r.photo.startsWith('data:image/') ? { photo: r.photo } : {}),
+    prepMin: minutesOf(r.prepMin),
+    cookMin: minutesOf(r.cookMin),
+    tags: [...new Set<string>((Array.isArray(r.tags) ? r.tags : []).filter((x: unknown) => typeof x === 'string').map((x: string) => cleanTag(x)).filter(Boolean))],
+    ...(typeof r.source === 'string' && /^https?:\/\//.test(r.source) ? { source: r.source } : {}),
   }));
   let slots: Slot[] = (Array.isArray(p.slots) ? p.slots : []).filter(isObj).map((s: any) => ({ id: str(s.id) || uid(), name: str(s.name) }));
   if (!slots.length) slots = DEFAULT_SLOTS.map((s) => ({ ...s }));

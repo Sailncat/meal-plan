@@ -7,6 +7,8 @@
 //
 // GET /search?q=pomidory&country=en:poland&lang=pl&page=1
 //   → { count, products: [{ code, product_name, brands, quantity, nutriments, ... }], from: "new" | "old" }
+// GET /recipe?url=https://…   → the recipe a page publishes (schema.org Recipe), for importing into the app
+// GET /image?url=https://…    → a picture, passed through so the app may shrink it into a recipe photo
 //
 // Nothing is logged or stored except Cloudflare's own short-lived cache of identical searches.
 
@@ -125,6 +127,216 @@ export async function searchOld({ terms, country, page }, fetcher, delayMs = 400
   throw lastError;
 }
 
+// ---------- recipe pages ----------
+
+const MAX_PAGE = 3 * 1024 * 1024;
+const MAX_IMAGE = 8 * 1024 * 1024;
+
+/** Only ordinary public web addresses: no local machines, no bare IP addresses, no odd ports. */
+export function publicUrl(raw) {
+  let u;
+  try {
+    u = new URL(String(raw ?? ''));
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  if (u.username || u.password) return null;
+  if (u.port && u.port !== '80' && u.port !== '443') return null;
+  const host = u.hostname.toLowerCase();
+  if (!host.includes('.') || /^[\d.]+$/.test(host) || host.startsWith('[') || /(^|\.)(localhost|local|internal|lan|home)$/.test(host)) return null;
+  return u;
+}
+
+/** Reads at most `max` bytes, so a huge page can't tie the relay up. */
+async function readCapped(res, max) {
+  const reader = res.body?.getReader();
+  if (!reader) return new Uint8Array();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > max) {
+      reader.cancel();
+      throw new Error('too big');
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
+}
+
+const ENTITIES = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', frac12: '½', frac14: '¼', frac34: '¾', deg: '°', ndash: '–', mdash: '—', hellip: '…', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“' };
+export function cleanText(v) {
+  return String(v ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(#x[\da-f]+|#\d+|[a-z]+\d*);/gi, (m, e) => {
+      if (e[0] === '#') {
+        const code = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+      }
+      return ENTITIES[e.toLowerCase()] ?? m;
+    })
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .trim();
+}
+
+/** "PT1H30M" → 90, "P0DT0H20M" → 20; a plain number is taken as minutes. */
+export function isoMinutes(v) {
+  if (typeof v === 'number') return v > 0 ? Math.round(v) : null;
+  const m = String(v ?? '').match(/^P(?:(\d+)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:\d+(?:\.\d+)?S)?)?$/i);
+  if (!m) return null;
+  const min = Number(m[1] ?? 0) * 1440 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0);
+  return min > 0 ? Math.round(min) : null;
+}
+
+const isRecipe = (n) => n && typeof n === 'object' && [].concat(n['@type'] ?? []).some((t) => /^(schema:|https?:\/\/schema\.org\/)?Recipe$/i.test(String(t)));
+
+/** The first Recipe anywhere in a JSON-LD tree: plain, in an array, in @graph, or under mainEntity. */
+export function findRecipe(node, depth = 0) {
+  if (!node || typeof node !== 'object' || depth > 6) return null;
+  if (Array.isArray(node)) {
+    for (const x of node) {
+      const r = findRecipe(x, depth + 1);
+      if (r) return r;
+    }
+    return null;
+  }
+  if (isRecipe(node)) return node;
+  for (const key of ['@graph', 'mainEntity', 'mainEntityOfPage', 'itemListElement', 'about']) {
+    const r = findRecipe(node[key], depth + 1);
+    if (r) return r;
+  }
+  return null;
+}
+
+function stepsOf(v) {
+  if (!v) return [];
+  if (typeof v === 'string') {
+    // One block of text: split on line breaks, or on numbered steps.
+    const text = cleanText(v.replace(/<\/(p|li|div)>/gi, '\n'));
+    return text.split(/\n+|(?=\b\d{1,2}[.)]\s+[A-ZĄĆĘŁŃÓŚŹŻ])/).map((x) => x.replace(/^\d{1,2}[.)]\s+/, '').trim()).filter(Boolean);
+  }
+  if (Array.isArray(v)) return v.flatMap(stepsOf);
+  if (typeof v === 'object') {
+    if (v.itemListElement) return stepsOf(v.itemListElement);
+    const t = v.text ?? v.name ?? v.description;
+    return t ? stepsOf(String(t)) : [];
+  }
+  return [];
+}
+
+function imageOf(v, base) {
+  const first = Array.isArray(v) ? v[0] : v;
+  const url = typeof first === 'string' ? first : first?.url ?? first?.contentUrl;
+  if (!url) return null;
+  try {
+    return new URL(url, base).href;
+  } catch {
+    return null;
+  }
+}
+
+function tagsOf(r) {
+  const raw = [r.keywords, r.recipeCategory, r.recipeCuisine]
+    .flatMap((v) => (Array.isArray(v) ? v : typeof v === 'string' ? v.split(',') : []))
+    .map((t) => cleanText(t).toLowerCase())
+    .filter((t) => t && t.length <= 20);
+  return [...new Set(raw)].slice(0, 5);
+}
+
+/** Turns a page's HTML into the recipe it publishes, or null when it publishes none. */
+export function recipeFromHtml(html, pageUrl) {
+  const scripts = [...html.matchAll(/<script[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+  for (const raw of scripts) {
+    let data;
+    try {
+      data = JSON.parse(raw.trim());
+    } catch {
+      try {
+        data = JSON.parse(raw.trim().replace(/[\u0000-\u001f]+/g, ' '));
+      } catch {
+        continue;
+      }
+    }
+    const r = findRecipe(data);
+    if (!r) continue;
+    const yieldText = [].concat(r.recipeYield ?? []).map(String).join(' ');
+    const servings = Number(yieldText.match(/\d+(?:[.,]\d+)?/)?.[0]?.replace(',', '.')) || null;
+    let prepMin = isoMinutes(r.prepTime);
+    let cookMin = isoMinutes(r.cookTime);
+    if (!prepMin && !cookMin) cookMin = isoMinutes(r.totalTime);
+    const ingredients = [].concat(r.recipeIngredient ?? r.ingredients ?? []).map(cleanText).filter(Boolean);
+    return {
+      name: cleanText(r.name) || 'Imported recipe',
+      servings,
+      prepMin,
+      cookMin,
+      ingredients,
+      steps: stepsOf(r.recipeInstructions),
+      image: imageOf(r.image, pageUrl),
+      tags: tagsOf(r),
+      url: pageUrl,
+      site: new URL(pageUrl).hostname.replace(/^www\./, ''),
+    };
+  }
+  return null;
+}
+
+async function recipeRoute(url, origin, fetcher) {
+  const target = publicUrl(url.searchParams.get('url'));
+  if (!target) return json({ error: 'That doesn’t look like a web page address.' }, 400, origin);
+  let res;
+  try {
+    res = await fetcher(target.href, {
+      headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    return json({ error: 'Couldn’t open that page. Check the link, or try again in a moment.' }, 502, origin);
+  }
+  if (!res.ok) return json({ error: `That page answered with an error (${res.status}).` }, 502, origin);
+  if (!/html/i.test(res.headers.get('content-type') ?? '')) return json({ error: 'That link isn’t a web page.' }, 422, origin);
+  let html;
+  try {
+    html = new TextDecoder().decode(await readCapped(res, MAX_PAGE));
+  } catch {
+    return json({ error: 'That page is too big to read.' }, 422, origin);
+  }
+  const recipe = recipeFromHtml(html, res.url || target.href);
+  if (!recipe) return json({ error: 'This page doesn’t share its recipe in a form the app can read. Many big recipe sites do; this one doesn’t.' }, 422, origin);
+  return json(recipe, 200, origin, { 'Cache-Control': 'max-age=86400' });
+}
+
+async function imageRoute(url, origin, fetcher) {
+  const target = publicUrl(url.searchParams.get('url'));
+  if (!target) return json({ error: 'Bad picture address' }, 400, origin);
+  let res;
+  try {
+    res = await fetcher(target.href, { headers: { 'User-Agent': USER_AGENT, Accept: 'image/*' }, redirect: 'follow', signal: AbortSignal.timeout(10_000) });
+  } catch {
+    return json({ error: 'Couldn’t get the picture' }, 502, origin);
+  }
+  const type = res.headers.get('content-type') ?? '';
+  if (!res.ok || !type.startsWith('image/')) return json({ error: 'Not a picture' }, 422, origin);
+  try {
+    const body = await readCapped(res, MAX_IMAGE);
+    return new Response(body, { headers: { 'Content-Type': type, 'Cache-Control': 'max-age=86400', ...corsHeaders(origin) } });
+  } catch {
+    return json({ error: 'Picture too big' }, 422, origin);
+  }
+}
+
 export async function handle(request, { fetcher = fetch, cache = null, waitUntil = () => {}, delayMs = 400 } = {}) {
   const url = new URL(request.url);
   const origin = request.headers.get('Origin') ?? '';
@@ -132,6 +344,11 @@ export async function handle(request, { fetcher = fetch, cache = null, waitUntil
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
   if (request.method !== 'GET') return json({ error: 'Only GET' }, 405, origin);
   if (url.pathname === '/') return new Response('Meal plan search relay. https://github.com/Sailncat/meal-plan\n', { headers: corsHeaders(origin) });
+  // Pages and pictures are only fetched for the app itself, so the relay can't be used as an open proxy.
+  if (url.pathname === '/recipe' || url.pathname === '/image') {
+    if (!ALLOWED_ORIGINS.includes(origin)) return json({ error: 'Only for the Meal plan app' }, 403, origin);
+    return url.pathname === '/recipe' ? recipeRoute(url, origin, fetcher) : imageRoute(url, origin, fetcher);
+  }
   if (url.pathname !== '/search') return json({ error: 'Not found' }, 404, origin);
 
   const terms = cleanTerms(url.searchParams.get('q'));

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { parseBasic, searchBasic, STAPLES } from '../src/lib/basicFoods';
+import { matchBasic, parseIngredient } from '../src/lib/ingredients';
 
 // Runs against the real shipped list, so a data rebuild that breaks search shows up here.
 describe('the shipped basic foods list', () => {
@@ -26,5 +27,18 @@ describe('the shipped basic foods list', () => {
   it('counts eggs and bananas in pieces', () => {
     const egg = list.find((f) => f.name === 'Egg, whole, raw, fresh')!;
     expect(egg.portions[0]).toEqual({ name: 'large egg', size: 50 });
+  });
+
+  it('matches recipe lines to the food itself, not a word it mentions', () => {
+    const m = (line: string) => matchBasic(list, parseIngredient(line).name)?.name;
+    expect(m('1 tsp smoked paprika')).toBe('Spices, paprika');
+    expect(m('salt to taste')).toBe('Salt, table');
+    expect(m('1 cup plain flour')).toMatch(/^Wheat flour/);
+    expect(m('2 boneless skinless chicken thighs')).toMatch(/^Chicken, .*thigh/);
+    expect(m('400 g can chopped tomatoes')).toMatch(/^Tomatoes/);
+    expect(m('500 ml chicken stock')).toMatch(/stock, chicken/);
+    expect(m('2 large eggs')).toBe('Egg, whole, raw, fresh');
+    expect(m('1 red onion')).toMatch(/^Onions/);
+    expect(m('freshly ground black pepper')).toBe('Spices, pepper, black');
   });
 });

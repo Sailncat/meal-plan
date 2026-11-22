@@ -64,6 +64,16 @@ export interface Recipe {
   servings: number;
   lines: RecipeLine[];
   notes: string;
+  /** Cooking steps, in order. */
+  steps: string[];
+  /** A JPEG data URL, shrunk to phone-screen size. */
+  photo?: string;
+  /** Minutes; null when not filled in. */
+  prepMin: number | null;
+  cookMin: number | null;
+  tags: string[];
+  /** The page it was imported from. */
+  source?: string;
 }
 
 /** A meal the user has in their day: Breakfast, Lunch, Shakes… */
