@@ -111,7 +111,10 @@
 
 <header class="top">
   <div class="top-inner">
-    <a class="brand" href="#plan"><img src="./icon.svg" alt="" width="26" height="26" /> Meal plan</a>
+    <span class="brand-wrap">
+      <a class="brand" href="#plan"><img src="./icon.svg" alt="" width="26" height="26" /> Meal plan</a>
+      {#if store.plan}<a class="beta" href="#help" title="Meal plan is in beta: tap for help and to send feedback">Beta</a>{/if}
+    </span>
     {#if store.plan}
       <nav class="tabs" aria-label="Sections">
         {#each VIEWS as v (v.id)}
@@ -202,6 +205,23 @@
   }
   .brand img {
     border-radius: 0.4rem;
+  }
+  .brand-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .beta {
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--band-edge);
+    border-radius: 1rem;
+    background: var(--pick);
+    color: var(--pick-ink);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-decoration: none;
   }
   .tabs {
     display: none;

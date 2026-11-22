@@ -1,0 +1,80 @@
+/* The privacy and terms pages. They stand on their own, so they open even if the app doesn't load. */
+:root {
+  color-scheme: light dark;
+  --bg: #efe9df;
+  --surface: #fbf8f2;
+  --ink: #1f1919;
+  --muted: #6e625a;
+  --line: #ddd2c3;
+  --accent: #8e2433;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171414;
+    --surface: #1f1919;
+    --ink: #e9e3d9;
+    --muted: #948a80;
+    --line: #342a29;
+    --accent: #f0cd6e;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 1rem/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+main {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1rem 1.1rem 3rem;
+  background: var(--surface);
+  min-height: 100vh;
+}
+h1 {
+  margin: 0.5rem 0 0;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+h2 {
+  margin: 1.8rem 0 0.4rem;
+  font-size: 1.15rem;
+  color: var(--accent);
+}
+p,
+li {
+  margin: 0 0 0.75rem;
+}
+ul {
+  padding-left: 1.2rem;
+}
+a {
+  color: var(--accent);
+}
+.back {
+  margin: 0;
+  font-weight: 600;
+}
+.back a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.date {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.lead {
+  font-size: 1.08rem;
+  padding: 0.75rem 0.9rem;
+  border-left: 3px solid var(--accent);
+  background: var(--bg);
+}
+.foot {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}

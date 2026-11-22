@@ -261,6 +261,7 @@
       <p class="note">Formulas give a starting point. If your weight isn't moving the way you want after two or three weeks, nudge your calories by about 100–200 kcal.</p>
     </details>
   {/if}
+  <p class="note medical">Not medical advice: these are general estimates. If you have a health condition, are pregnant or breastfeeding, or want to change your weight a lot, check with a doctor or dietitian.</p>
 </section>
 
 <a class="card settings-link" href="#options">
@@ -275,6 +276,10 @@
 </a>
 
 <style>
+  .medical {
+    margin-top: 0.8rem;
+    font-size: 0.8rem;
+  }
   .block {
     padding: 0.85rem;
     margin-bottom: 0.85rem;

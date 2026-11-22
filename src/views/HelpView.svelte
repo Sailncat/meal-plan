@@ -28,7 +28,7 @@
 <h1 class="page-title">Help and about</h1>
 
 <section class="panel pad feedback">
-  <p><b>Found a bug or have an idea?</b></p>
+  <p><b>Meal plan is in beta.</b> Things may change, and some may break. If something looks wrong or you have an idea, please say so.</p>
   <a class="btn primary" href={feedbackUrl} target="_blank" rel="noopener">Send feedback on GitHub</a>
   <p class="note">
     Opens a new post with your app version and device filled in. Needs a free GitHub account. Posts are public, so leave out anything
@@ -100,6 +100,11 @@
   </details>
 </div>
 
+<h2 class="bar">Your health</h2>
+<div class="panel pad prose">
+  <p>Meal plan isn’t a medical device and doesn’t diagnose or treat anything. Its targets are general estimates; if you have a health condition, are pregnant or breastfeeding, or want to change your weight a lot, check with a doctor or dietitian.</p>
+</div>
+
 <h2 class="bar">Your data</h2>
 <div class="panel pad prose">
   {#if store.storage === 'memory'}
@@ -113,13 +118,14 @@
   {/if}
   <p>
     The only things sent anywhere are food searches, barcode lookups, and recipe pages you import. They pass through the app’s own relay
-    on Cloudflare, which keeps no record of them.
+    on Cloudflare, which keeps no record of who asked.
   </p>
+  <p><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of use</a></p>
 </div>
 
 <h2 class="bar">About</h2>
 <div class="panel pad prose">
-  <p>Meal plan · test build{import.meta.env.VITE_PREVIEW ? ' (preview)' : ''} · updated {version}</p>
+  <p>Meal plan · beta{import.meta.env.VITE_PREVIEW ? ' (preview)' : ''} · updated {version}</p>
   <p class="note">
     Packaged food data © <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> contributors,
     under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License</a>. Basic food

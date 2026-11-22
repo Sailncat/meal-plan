@@ -47,7 +47,9 @@
     <input type="file" accept=".json,application/json" hidden bind:this={fileInput} onchange={load} />
   </div>
   {#if error}<p class="err" role="alert">{error}</p>{/if}
-  <p class="note">Your plan stays on this device. There’s no account.</p>
+  <p class="note">
+    Your plan stays on this device. There’s no account. <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a>
+  </p>
 </div>
 
 <style>
@@ -78,6 +80,9 @@
   .err {
     color: var(--over);
     font-weight: 600;
+  }
+  .note a {
+    color: inherit;
   }
   .shared {
     padding: 0.6rem 0.8rem;

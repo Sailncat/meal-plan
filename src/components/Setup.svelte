@@ -60,7 +60,7 @@
         </div>
       {:else if step === 1}
         <h2 id="setup-h">About you</h2>
-        <p>Used only to work out your targets, and kept on this device.</p>
+        <p>Used only to work out your targets, and kept on this device (<a href="privacy.html" target="_blank" rel="noopener">privacy</a>).</p>
         <ProfileForm withWeight short />
         {#if gaps.includes('under18')}
           <p class="warn">This app works out targets for adults only. For anyone under 18, it's best to plan targets with a doctor or dietitian.</p>
@@ -88,6 +88,7 @@
           </p>
         {/if}
         <p class="note">Next: pick a day on the Plan tab and add your meals.</p>
+        <p class="note medical">Meal plan isn’t a medical device and doesn’t diagnose or treat anything. Its targets are general estimates; if you have a health condition, are pregnant or breastfeeding, or want to change your weight a lot, check with a doctor or dietitian.</p>
       {/if}
     </div>
 
@@ -208,6 +209,14 @@
   }
   .warn {
     color: var(--over);
+  }
+  .body a {
+    color: inherit;
+  }
+  .medical {
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
   }
   .foot {
     display: flex;
