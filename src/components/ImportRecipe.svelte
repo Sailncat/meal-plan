@@ -27,7 +27,6 @@
   let servings = $state(1);
   let prepMin = $state<number | null>(null);
   let cookMin = $state<number | null>(null);
-  let tags = $state<string[]>([]);
   let photo = $state<string | null>(null);
   let photoState = $state<'none' | 'loading' | 'ready' | 'failed'>('none');
   let usePhoto = $state(true);
@@ -66,7 +65,6 @@
       servings = w.servings && w.servings > 0 ? w.servings : 1;
       prepMin = w.prepMin;
       cookMin = w.cookMin;
-      tags = [...w.tags];
       photo = null;
       usePhoto = true;
       view = 'review';
@@ -113,7 +111,6 @@
       servings,
       prepMin,
       cookMin,
-      tags,
       steps: web.steps,
       photo: usePhoto ? photo : null,
     });
@@ -177,13 +174,6 @@
           <label><span class="label">Prep (min)</span><NumInput value={prepMin} label="Prep time in minutes" onchange={(v) => (prepMin = v && v > 0 ? Math.round(v) : null)} /></label>
           <label><span class="label">Cook (min)</span><NumInput value={cookMin} label="Cook time in minutes" onchange={(v) => (cookMin = v && v > 0 ? Math.round(v) : null)} /></label>
         </div>
-        {#if tags.length}
-          <div class="tags">
-            {#each tags as t, i (t)}
-              <span class="tag-chip">{t}<button aria-label="Remove tag {t}" onclick={() => tags.splice(i, 1)}>×</button></span>
-            {/each}
-          </div>
-        {/if}
 
         <h3>Ingredients <span class="count">{matched} of {rows.length} matched</span></h3>
         <p class="note">Check each one. Tap a food to change it, or × to leave a line out; lines left out go in the recipe’s notes.</p>
@@ -347,28 +337,9 @@
   .facts label {
     width: 6.5rem;
   }
-  .tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-  }
-  .tag-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.15rem;
-    font-size: 0.85rem;
-    padding: 0.15rem 0.3rem 0.15rem 0.55rem;
-    border-radius: 1rem;
-    background: var(--pick);
-    color: var(--pick-ink);
-  }
-  .tag-chip button {
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font-size: 1rem;
-    cursor: pointer;
-  }
+
+
+
   h3 {
     margin: 0.5rem 0 0;
     font-size: 1.05rem;

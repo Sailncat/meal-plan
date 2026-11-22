@@ -71,7 +71,6 @@ export interface Recipe {
   /** Minutes; null when not filled in. */
   prepMin: number | null;
   cookMin: number | null;
-  tags: string[];
   /** The page it was imported from. */
   source?: string;
 }

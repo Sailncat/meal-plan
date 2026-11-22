@@ -93,7 +93,7 @@ describe('importing a recipe', async () => {
       [12, 'Carrots, raw', 'Vegetables and Vegetable Products', [41, 0.9], [['medium', 61]]],
     ],
   } as never);
-  const web = { name: 'Garlic chicken', servings: 2, prepMin: 10, cookMin: 30, ingredients: [], steps: ['Fry.'], image: null, tags: ['dinner'], url: 'https://example.com/r', site: 'example.com' };
+  const web = { name: 'Garlic chicken', servings: 2, prepMin: 10, cookMin: 30, ingredients: [], steps: ['Fry.'], image: null, url: 'https://example.com/r', site: 'example.com' };
 
   it('matches own foods, then basic foods, and leaves out what’s to taste', () => {
     const plan = emptyPlan();
@@ -113,13 +113,13 @@ describe('importing a recipe', async () => {
     const plan = emptyPlan();
     plan.foods.push(blankFood({ id: 'chicken', name: 'Chicken breast' }));
     const rows = matchRows(plan, basic, ['400 g chicken breast', '3 cloves garlic', '1 clove garlic, minced', 'salt to taste', '1 tbsp paprika']);
-    const r = buildRecipe(plan, web, rows, { name: ' Garlic chicken ', servings: 2, prepMin: 10, cookMin: 30, tags: ['Dinner'], steps: ['Fry.', ' '], photo: null });
+    const r = buildRecipe(plan, web, rows, { name: ' Garlic chicken ', servings: 2, prepMin: 10, cookMin: 30, steps: ['Fry.', ' '], photo: null });
     expect(plan.recipes[0]).toBe(r);
     expect(r.lines).toHaveLength(3);
     expect(plan.foods.map((f) => f.name)).toEqual(['Chicken breast', 'Garlic, raw']); // garlic added once
     expect(r.lines[1].measure).toBe(plan.foods[1].measures.find((m) => m.name === 'clove')!.id);
     expect(r.notes).toBe('Not added from the original:\n• salt to taste\n• 1 tbsp paprika');
-    expect(r).toMatchObject({ name: 'Garlic chicken', servings: 2, prepMin: 10, cookMin: 30, tags: ['dinner'], steps: ['Fry.'], source: 'https://example.com/r' });
+    expect(r).toMatchObject({ name: 'Garlic chicken', servings: 2, prepMin: 10, cookMin: 30, steps: ['Fry.'], source: 'https://example.com/r' });
   });
 
   it('passes on the relay’s reason when a page can’t be read', async () => {

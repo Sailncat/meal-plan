@@ -8,20 +8,13 @@
   const plan = $derived(store.plan!);
   let openId = $state<string | null>(null);
   let q = $state('');
-  let chosen = $state<string[]>([]);
   let importing = $state(false);
 
-  const usedTags = $derived([...new Set(plan.recipes.flatMap((r) => r.tags))].sort());
-  const shown = $derived(findRecipes(plan, q, chosen));
-  const filtering = $derived(!!q.trim() || chosen.length > 0);
-
-  function toggleTag(t: string) {
-    chosen = chosen.includes(t) ? chosen.filter((x) => x !== t) : [...chosen, t];
-  }
+  const shown = $derived(findRecipes(plan, q));
+  const filtering = $derived(!!q.trim());
 
   async function show(id: string) {
     q = '';
-    chosen = [];
     openId = id;
     await tick();
     const el = document.querySelector<HTMLElement>(`#recipe-${id}`);
@@ -48,14 +41,7 @@
 
 {#if plan.recipes.length > 3}
   <div class="find">
-    <input class="field" type="search" bind:value={q} placeholder="Search recipes, tags or ingredients" aria-label="Search recipes" />
-    {#if usedTags.length}
-      <div class="filters" role="group" aria-label="Filter by tag">
-        {#each usedTags as t (t)}
-          <button class="filter" class:on={chosen.includes(t)} aria-pressed={chosen.includes(t)} onclick={() => toggleTag(t)}>{t}</button>
-        {/each}
-      </div>
-    {/if}
+    <input class="field" type="search" bind:value={q} placeholder="Search recipes or ingredients" aria-label="Search recipes" />
   </div>
 {/if}
 
@@ -65,8 +51,8 @@
   {:else}
     {#if filtering}
       <p class="note none">
-        No recipe matches{q.trim() ? ` “${q.trim()}”` : ''}{chosen.length ? ` with ${chosen.join(' + ')}` : ''}.
-        <button class="btn small ghost" onclick={() => ((q = ''), (chosen = []))}>Show all</button>
+        No recipe matches “{q.trim()}”.
+        <button class="btn small ghost" onclick={() => (q = '')}>Show all</button>
       </p>
     {:else}
       <div class="card empty">
@@ -94,29 +80,7 @@
     gap: 0.4rem;
   }
   .find {
-    display: grid;
-    gap: 0.5rem;
     margin-top: 0.75rem;
-  }
-  .filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-  }
-  .filter {
-    min-height: 2rem;
-    padding: 0.15rem 0.7rem;
-    border: 1px solid var(--line);
-    border-radius: 1rem;
-    background: var(--surface);
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-  .filter.on {
-    background: var(--pick);
-    border-color: var(--band-edge);
-    color: var(--pick-ink);
-    font-weight: 600;
   }
   .list {
     display: grid;

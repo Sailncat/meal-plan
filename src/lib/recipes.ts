@@ -1,9 +1,8 @@
-// Recipes: new, copied, scaled, tagged and found.
+// Recipes: new, copied, scaled and found.
 
 import type { Plan, Recipe } from './types';
 import { foodById } from './calc';
 import { fold, uid } from './num';
-import { cleanTag } from './migrate';
 
 export function blankRecipe(over: Partial<Recipe> = {}): Recipe {
   return {
@@ -15,7 +14,6 @@ export function blankRecipe(over: Partial<Recipe> = {}): Recipe {
     steps: [],
     prepMin: null,
     cookMin: null,
-    tags: [],
     ...over,
   };
 }
@@ -53,28 +51,12 @@ export function minutesText(min: number): string {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-export const TAG_SUGGESTIONS = ['breakfast', 'lunch', 'dinner', 'snack', 'high-protein', 'quick', 'batch', 'cheap', 'vegetarian', 'shake'];
-
-/** Every tag in use, most used first, then the suggestions nobody has used yet. */
-export function tagOptions(plan: Plan): string[] {
-  const count = new Map<string, number>();
-  for (const r of plan.recipes) for (const t of r.tags) count.set(t, (count.get(t) ?? 0) + 1);
-  const used = [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
-  return [...used, ...TAG_SUGGESTIONS.filter((t) => !count.has(t))];
-}
-
-export function addTag(r: Recipe, raw: string) {
-  const t = cleanTag(raw);
-  if (t && !r.tags.includes(t)) r.tags.push(t);
-}
-
-/** Matches the name, a tag or an ingredient; every chosen tag has to be on the recipe. */
-export function findRecipes(plan: Plan, query: string, tags: string[]): Recipe[] {
+/** Recipes whose name or ingredients have every word searched for. */
+export function findRecipes(plan: Plan, query: string): Recipe[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return plan.recipes;
   return plan.recipes.filter((r) => {
-    if (!tags.every((t) => r.tags.includes(t))) return false;
-    if (!words.length) return true;
-    const hay = fold([r.name, ...r.tags, ...r.lines.map((l) => foodById(plan, l.food)?.name ?? '')].join(' '));
+    const hay = fold([r.name, ...r.lines.map((l) => foodById(plan, l.food)?.name ?? '')].join(' '));
     return words.every((w) => hay.includes(w));
   });
 }

@@ -8,7 +8,7 @@
   import AmountInput from './AmountInput.svelte';
   import FoodSearch from './FoodSearch.svelte';
   import { measureOf } from '../lib/units';
-  import { addTag, duplicateRecipe, minutesText, scaleRecipe, tagOptions, totalMinutes } from '../lib/recipes';
+  import { duplicateRecipe, minutesText, scaleRecipe, totalMinutes } from '../lib/recipes';
   import { shrinkPhoto } from '../lib/photos';
   import { showToast } from '../lib/store.svelte';
   import { fmtN } from '../lib/num';
@@ -66,29 +66,6 @@
     undoable(`Removed the photo of ${recipe.name || 'this recipe'}`, () => {
       delete recipe.photo;
     });
-  }
-
-  // ---------- tags ----------
-  let tagText = $state('');
-  const options = $derived(open ? tagOptions(plan).filter((t) => !recipe.tags.includes(t)) : []);
-  function tagKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      commitTag();
-    } else if (e.key === 'Backspace' && !tagText && recipe.tags.length) {
-      recipe.tags.pop();
-    }
-  }
-  // Phone keyboards don't always report the comma key, so watch the text too.
-  function tagInput() {
-    if (!tagText.includes(',')) return;
-    const parts = tagText.split(',');
-    tagText = parts.pop() ?? '';
-    for (const t of parts) addTag(recipe, t);
-  }
-  function commitTag() {
-    for (const t of tagText.split(',')) addTag(recipe, t);
-    tagText = '';
   }
 
   // ---------- steps ----------
@@ -153,9 +130,6 @@
     <span class="meta tabular">
       {fmt0(E(per.kcal))} {EU()} · {fmt0(per.protein)} g protein a serving{servingsOf(recipe) > 1 ? ` · batch makes ${fmtN(servingsOf(recipe))}` : ''}{totalMinutes(recipe) ? ` · ${minutesText(totalMinutes(recipe))}` : ''}
     </span>
-    {#if recipe.tags.length}
-      <span class="tags-line">{#each recipe.tags as t (t)}<span class="tag-chip">{t}</span>{/each}</span>
-    {/if}
     <span class="chev" aria-hidden="true">▾</span>
   </button>
 
@@ -191,26 +165,6 @@
         {photoBusy ? 'Adding…' : '+ Photo'}<input type="file" accept="image/*" onchange={pickPhoto} />
       </label>
     {/if}
-  </div>
-
-  <div class="tags">
-    {#each recipe.tags as t, i (t)}
-      <span class="tag-chip">{t}<button aria-label="Remove tag {t}" onclick={() => recipe.tags.splice(i, 1)}>×</button></span>
-    {/each}
-    <input
-      class="tag-in"
-      bind:value={tagText}
-      list="tags-{recipe.id}"
-      placeholder={recipe.tags.length ? 'Add a tag' : 'Tags: breakfast, high-protein…'}
-      aria-label="Add a tag"
-      onkeydown={tagKey}
-      oninput={tagInput}
-      onchange={commitTag}
-      onblur={commitTag}
-    />
-    <datalist id="tags-{recipe.id}">
-      {#each options as t (t)}<option value={t}></option>{/each}
-    </datalist>
   </div>
 
   <div class="lines">
@@ -340,7 +294,7 @@
   }
   .summary.with-photo {
     grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: 'thumb nm chev' 'thumb meta chev' 'thumb tags chev';
+    grid-template-areas: 'thumb nm chev' 'thumb meta chev';
   }
   .thumb {
     grid-area: thumb;
@@ -349,32 +303,9 @@
     object-fit: cover;
     border-radius: 0.4rem;
   }
-  .tags-line {
-    grid-area: tags;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-top: 0.15rem;
-  }
-  .tag-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.15rem;
-    font-size: 0.78rem;
-    padding: 0.05rem 0.5rem;
-    border-radius: 1rem;
-    background: var(--pick);
-    color: var(--pick-ink);
-  }
-  .tag-chip button {
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font-size: 1rem;
-    line-height: 1;
-    padding: 0 0.1rem;
-    cursor: pointer;
-  }
+
+
+
   .photo img {
     display: block;
     width: 100%;
@@ -408,27 +339,9 @@
   .facts label:not(.btn) {
     width: 6.5rem;
   }
-  .tags {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.6rem 0.75rem 0.2rem;
-  }
-  .tags .tag-chip {
-    font-size: 0.85rem;
-    padding: 0.15rem 0.3rem 0.15rem 0.55rem;
-  }
-  .tag-in {
-    flex: 1 1 10rem;
-    min-width: 8rem;
-    min-height: 2.25rem;
-    border: 1px dashed var(--line);
-    border-radius: 0.4rem;
-    background: transparent;
-    padding: 0.2rem 0.5rem;
-    color: inherit;
-  }
+
+
+
   .steps {
     display: block;
     padding: 0.7rem 0.75rem 0;

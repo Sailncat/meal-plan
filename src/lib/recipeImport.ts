@@ -6,7 +6,6 @@ import { amountFor, matchBasicScored, matchOwnScored, parseIngredient, type Pars
 import { basicDraft, type BasicFood } from './basicFoods';
 import { foodFromDraft, libraryMatch } from './foods';
 import { blankRecipe } from './recipes';
-import { cleanTag } from './migrate';
 
 export interface WebRecipe {
   name: string;
@@ -16,7 +15,6 @@ export interface WebRecipe {
   ingredients: string[];
   steps: string[];
   image: string | null;
-  tags: string[];
   url: string;
   site: string;
 }
@@ -87,7 +85,6 @@ export interface ImportChoices {
   servings: number;
   prepMin: number | null;
   cookMin: number | null;
-  tags: string[];
   steps: string[];
   photo: string | null;
 }
@@ -119,7 +116,6 @@ export function buildRecipe(plan: Plan, web: WebRecipe, rows: ImportRow[], c: Im
     steps: c.steps.map((s) => s.trim()).filter(Boolean),
     prepMin: c.prepMin,
     cookMin: c.cookMin,
-    tags: [...new Set(c.tags.map(cleanTag).filter(Boolean))],
     source: web.url,
     ...(c.photo ? { photo: c.photo } : {}),
   });

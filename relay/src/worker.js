@@ -246,14 +246,6 @@ function imageOf(v, base) {
   }
 }
 
-function tagsOf(r) {
-  const raw = [r.keywords, r.recipeCategory, r.recipeCuisine]
-    .flatMap((v) => (Array.isArray(v) ? v : typeof v === 'string' ? v.split(',') : []))
-    .map((t) => cleanText(t).toLowerCase())
-    .filter((t) => t && t.length <= 20);
-  return [...new Set(raw)].slice(0, 5);
-}
-
 /** Turns a page's HTML into the recipe it publishes, or null when it publishes none. */
 export function recipeFromHtml(html, pageUrl) {
   const scripts = [...html.matchAll(/<script[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
@@ -284,7 +276,6 @@ export function recipeFromHtml(html, pageUrl) {
       ingredients,
       steps: stepsOf(r.recipeInstructions),
       image: imageOf(r.image, pageUrl),
-      tags: tagsOf(r),
       url: pageUrl,
       site: new URL(pageUrl).hostname.replace(/^www\./, ''),
     };

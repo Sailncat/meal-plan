@@ -134,7 +134,6 @@ describe('recipe pages', async () => {
       ingredients: ['500 g chicken breast', '200 g rice', '1 ½ tbsp olive oil', '2 cloves garlic'],
       steps: ['Dice the chicken.', 'Cook the rice.', 'Mix.'],
       image: 'https://www.example.com/img/chicken.jpg',
-      tags: ['high protein', 'meal prep', 'dinner'],
       site: 'example.com',
     });
   });

@@ -187,3 +187,16 @@ describe.runIf(real)('a real exported plan', () => {
     });
   });
 });
+
+describe('recipe extras in saved plans', () => {
+  it('keeps steps, times, photo and source, and drops tags from earlier saves', () => {
+    const p = emptyPlan();
+    const saved = JSON.parse(JSON.stringify(p));
+    saved.recipes = [
+      { id: 'r', name: 'Oats', servings: 1, lines: [], notes: '', steps: [' Boil. ', '', 3], prepMin: '5', cookMin: 0, photo: 'data:image/jpeg;base64,AAAA', source: 'https://example.com/oats', tags: ['breakfast'] },
+    ];
+    const r = normalize(saved).recipes[0];
+    expect(r).toEqual({ id: 'r', name: 'Oats', servings: 1, lines: [], notes: '', steps: ['Boil.'], prepMin: 5, cookMin: null, photo: 'data:image/jpeg;base64,AAAA', source: 'https://example.com/oats' });
+    expect('tags' in r).toBe(false);
+  });
+});
