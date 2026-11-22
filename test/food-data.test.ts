@@ -4,6 +4,8 @@ import { basicDraft, loadBasic, parseBasic, queryTokens, resetBasic, searchBasic
 import { offDraft, offNutrients, offProduct, offSearch, OffError, RateLimit, relay, resetLimits, retryDelay, servingPortion, type OffProduct } from '../src/lib/off';
 
 retryDelay.ms = 0;
+const LIVE_RELAY = relay.url;
+relay.url = '';
 import { emptyPlan, normalize } from '../src/lib/migrate';
 import { amountText } from '../src/lib/units';
 
@@ -143,6 +145,10 @@ describe('Open Food Facts requests', () => {
   describe('through the relay', () => {
     beforeEach(() => (relay.url = 'https://relay.test'));
     afterEach(() => (relay.url = ''));
+
+    it('points at the deployed relay', () => {
+      expect(LIVE_RELAY).toBe('https://meal-plan-search.sailncat.workers.dev');
+    });
 
     it('asks the relay, with the country’s language', async () => {
       const f = ok({ count: 1, products: [skyr], from: 'new' });

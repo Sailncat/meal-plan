@@ -158,7 +158,7 @@ export const retryDelay = { ms: 700 };
  * browsers can't reach. Empty until it's deployed; then search goes through it and only falls back to calling
  * Open Food Facts directly if the relay is down.
  */
-export const relay = { url: '' };
+export const relay = { url: 'https://meal-plan-search.sailncat.workers.dev' };
 
 export async function offProduct(barcode: string, fetcher: typeof fetch = fetch): Promise<OffProduct> {
   const code = barcode.replace(/\D/g, '');
