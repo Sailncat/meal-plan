@@ -30,7 +30,7 @@ export interface BasicFood {
  * The plain everyday version of common foods, so "milk" finds cow's milk before sheep's milk and "egg" finds a
  * whole egg before the yolk. Exact names from the data; matching still has to pass the normal word check.
  */
-const STAPLES = new Set([
+export const STAPLES = new Set([
   'Egg, whole, raw, fresh', 'Egg, whole, cooked, hard-boiled', 'Egg, whole, cooked, scrambled', 'Egg, whole, cooked, fried', 'Egg, white, raw, fresh',
   'Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw', 'Chicken, broilers or fryers, breast, meat only, cooked, roasted',
   'Chicken, broilers or fryers, thigh, meat only, cooked, roasted', 'Turkey, retail parts, breast, meat only, raw', 'Turkey, whole, meat only, raw',

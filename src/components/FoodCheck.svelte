@@ -16,19 +16,28 @@
   let { draft = $bindable(), action, onadd, onback }: Props = $props();
 
   let name = $state(draft.name);
+  // In the order of a European nutrition label, so it's easy to read across from the packet.
   const MAIN: [string, string][] = [
-    ['protein', 'Protein'],
-    ['carbs', 'Carbs'],
     ['fat', 'Fat'],
     ['satfat', 'of which saturates'],
+    ['carbs', 'Carbohydrate'],
     ['sugar', 'of which sugars'],
     ['fibre', 'Fibre'],
+    ['protein', 'Protein'],
     ['salt', 'Salt'],
   ];
   const MAIN_KEYS = new Set(['kcal', ...MAIN.map(([k]) => k)]);
   const extra = $derived(NUTRIENTS.filter((n) => !MAIN_KEYS.has(n.k) && draft.nut[n.k] != null));
   const missing = $derived(['kcal', 'protein', 'carbs', 'fat'].filter((k) => draft.nut[k] == null));
-  const from = $derived(draft.source?.db === 'off' ? 'Open Food Facts' : 'USDA basic foods');
+  const from = $derived(
+    [
+      draft.source?.db === 'off' ? 'From Open Food Facts' : 'From USDA basic foods',
+      draft.source?.db === 'off' ? `barcode ${draft.source.id}` : '',
+      draft.quantity ? `pack ${draft.quantity}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  );
 
   function set(k: string, v: number | null) {
     if (v == null) delete draft.nut[k];
@@ -46,10 +55,7 @@
   <button class="btn ghost small back" onclick={onback}>‹ Back</button>
   {#if draft.source}
     <h3 class="title">Check it before adding</h3>
-    <p class="src">
-      From {from}{#if draft.source.db === 'off'} · barcode {draft.source.id}{/if}{#if draft.quantity} · pack {draft.quantity}{/if} ·
-      <a href={draft.url} target="_blank" rel="noopener">see the original ↗</a>
-    </p>
+    <p class="src">{from} · <a href={draft.url} target="_blank" rel="noopener">see the original ↗</a></p>
   {:else}
     <h3 class="title">Type it in from the label</h3>
     {#if draft.barcode}<p class="src">Barcode {draft.barcode}</p>{/if}
@@ -86,7 +92,7 @@
     {/each}
   </div>
   {#if extra.length}
-    <p class="note">Plus {extra.length} vitamins and minerals: {extra.map((n) => n.s ?? n.l).join(', ')}.</p>
+    <p class="note">Also lists: {extra.map((n) => n.l).join(', ')}.</p>
   {/if}
   {#if !draft.source}
     <p class="note">Copy the “per 100 g” column. You can add vitamins and ways to count it on the Foods tab later.</p>
@@ -180,15 +186,23 @@
   }
   .vals {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
-    gap: 0.35rem 0.75rem;
+    grid-template-columns: 1fr;
+    gap: 0.3rem 1.25rem;
+  }
+  @media (min-width: 34rem) {
+    .vals {
+      grid-template-columns: 1fr 1fr;
+    }
   }
   .vals label {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 5.5rem;
+    grid-template-columns: minmax(0, 1fr) 6rem;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.9rem;
+    gap: 0.5rem;
+  }
+  .vals :global(.field) {
+    min-height: 2.25rem;
+    padding-block: 0.25rem;
   }
   .vals label.sub span {
     color: var(--muted);
@@ -216,10 +230,16 @@
   .start {
     margin-top: 0.4rem;
   }
+  /* The buttons stay in reach while the values scroll. */
   .foot {
+    position: sticky;
+    bottom: -0.5rem;
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
-    padding-top: 0.3rem;
+    padding: 0.6rem 0 0.5rem;
+    margin-top: 0.2rem;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
   }
 </style>

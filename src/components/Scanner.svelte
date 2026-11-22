@@ -216,6 +216,9 @@
     display: flex;
     gap: 0.5rem;
   }
+  .row .btn {
+    white-space: nowrap;
+  }
   .err {
     color: var(--over);
   }

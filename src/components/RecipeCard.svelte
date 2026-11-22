@@ -21,7 +21,8 @@
   let searching = $state(false);
   let target = $state(-1);
   function chooseFood(j: number) {
-    target = j;
+    // "+ Ingredient" fills a line that's still waiting for a food before it adds another.
+    target = j >= 0 ? j : recipe.lines.findIndex((l) => !foodById(plan, l.food));
     searching = true;
   }
   function picked(ref: string) {
@@ -121,8 +122,8 @@
     <FoodSearch
       bind:open={searching}
       mode="line"
-      title={target >= 0 ? 'Change ingredient' : `Add to ${recipe.name || 'recipe'}`}
-      action={target >= 0 ? 'Use in recipe' : 'Add to recipe'}
+      title={foodById(plan, recipe.lines[target]?.food ?? '') ? 'Change ingredient' : `Add to ${recipe.name || 'recipe'}`}
+      action={foodById(plan, recipe.lines[target]?.food ?? '') ? 'Use in recipe' : 'Add to recipe'}
       onpick={picked}
     />
   {/if}

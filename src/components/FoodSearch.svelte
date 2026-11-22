@@ -267,7 +267,7 @@
     </div>
 
     {#if view === 'search'}
-      <div class="bar">
+      <div class="searchbar">
         <input
           class="field"
           type="search"
@@ -467,7 +467,7 @@
     font-family: var(--display);
     font-size: 1.4rem;
   }
-  .bar {
+  .searchbar {
     display: flex;
     gap: 0.5rem;
   }

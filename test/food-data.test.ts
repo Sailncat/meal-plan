@@ -6,7 +6,7 @@ import { emptyPlan, normalize } from '../src/lib/migrate';
 import { amountText } from '../src/lib/units';
 
 const skyr: OffProduct = {
-  code: '5900000000017',
+  code: '5900000000015',
   product_name: 'Skyr naturalny',
   brands: 'Testowa Mleczarnia, Inna',
   quantity: '150 g',
@@ -50,8 +50,8 @@ describe('Open Food Facts product → food', () => {
     expect(d.unit).toBe('g');
     expect(d.portions).toEqual([{ name: 'pot', size: 150 }]); // pack is the same size, so it's not repeated
     expect(d.countBy).toBe(0);
-    expect(d.source).toEqual({ db: 'off', id: '5900000000017' });
-    expect(d.url).toBe('https://world.openfoodfacts.org/product/5900000000017');
+    expect(d.source).toEqual({ db: 'off', id: '5900000000015' });
+    expect(d.url).toBe('https://world.openfoodfacts.org/product/5900000000015');
   });
 
   it('spots drinks as ml', () => {
@@ -71,10 +71,10 @@ describe('Open Food Facts product → food', () => {
     const food = foodFromDraft(offDraft(skyr), '  Skyr  ');
     expect(food.name).toBe('Skyr');
     expect(food.per).toBe(100);
-    expect(food.source).toEqual({ db: 'off', id: '5900000000017' });
+    expect(food.source).toEqual({ db: 'off', id: '5900000000015' });
     expect(food.measures[0]).toMatchObject({ name: 'pot', size: 150 });
     expect(food.countBy).toBe(food.measures[0].id);
-    expect(food.note).toContain('Open Food Facts, barcode 5900000000017 (150 g)');
+    expect(food.note).toContain('Open Food Facts, barcode 5900000000015 (150 g)');
     expect(amountText(food, 2, food.countBy, 'metric')).toBe('2 pots');
   });
 });
@@ -84,10 +84,10 @@ describe('Open Food Facts requests', () => {
 
   it('looks up a barcode and asks only for the fields it needs', async () => {
     const f = ok({ status: 1, product: skyr });
-    const p = await offProduct('5900000000017', f);
+    const p = await offProduct('5900000000015', f);
     expect(p.product_name).toBe('Skyr naturalny');
     const url = String((f.mock.calls[0] as unknown[])[0]);
-    expect(url).toContain('/api/v2/product/5900000000017?fields=code,product_name');
+    expect(url).toContain('/api/v2/product/5900000000015?fields=code,product_name');
     expect(url).toContain('app_name=MealPlan');
   });
 
@@ -108,7 +108,7 @@ describe('Open Food Facts requests', () => {
   it('searches within a country, or everywhere', async () => {
     const f = ok({ count: 2, products: [skyr, { code: '2', product_name: '' }] });
     const r = await offSearch('skyr', 'en:poland', 1, f);
-    expect(r.products.map((p) => p.code)).toEqual(['5900000000017']); // nameless products are dropped
+    expect(r.products.map((p) => p.code)).toEqual(['5900000000015']); // nameless products are dropped
     const url = new URL(String((f.mock.calls[0] as unknown[])[0]));
     expect(url.pathname).toBe('/cgi/search.pl');
     expect(url.searchParams.get('search_terms')).toBe('skyr');
