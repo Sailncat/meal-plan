@@ -198,10 +198,18 @@
     if (existing && mode !== 'fill') return done('f:' + existing.id);
     openDraft(basicDraft(f));
   }
-  function pickProduct(p: OffProduct) {
+  /** Search results carry only the main values; the full product (vitamins, serving size, brand as written) comes by barcode. */
+  async function pickProduct(p: OffProduct) {
     const existing = libraryMatch(plan, { db: 'off', id: p.code });
     if (existing && mode !== 'fill') return done('f:' + existing.id);
-    openDraft(offDraft(p));
+    view = 'looking';
+    let full = p;
+    try {
+      full = await offProduct(p.code);
+    } catch {
+      // the search result will do
+    }
+    if (view === 'looking') openDraft(offDraft(full));
   }
   function addDraft(d: FoodDraft, name: string) {
     const food = foodFromDraft(d, name);
@@ -390,6 +398,7 @@
         <button class="btn ghost small back" onclick={() => (view = 'search')}>‹ Back to search</button>
         <Scanner onresult={lookup} />
       {:else if view === 'looking'}
+        <button class="btn ghost small back" onclick={() => (view = 'search')}>‹ Back to search</button>
         <p class="note centre">Looking it up on Open Food Facts…</p>
       {:else if view === 'notfound'}
         <button class="btn ghost small back" onclick={() => (view = 'search')}>‹ Back to search</button>

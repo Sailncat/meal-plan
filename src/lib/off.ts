@@ -20,35 +20,36 @@ const FIELDS = [
   'nutriments',
 ].join(',');
 
-export const COUNTRIES: { tag: string; name: string }[] = [
-  ['poland', 'Poland'],
-  ['austria', 'Austria'],
-  ['belgium', 'Belgium'],
-  ['czech-republic', 'Czechia'],
-  ['denmark', 'Denmark'],
-  ['estonia', 'Estonia'],
-  ['finland', 'Finland'],
-  ['france', 'France'],
-  ['germany', 'Germany'],
-  ['hungary', 'Hungary'],
-  ['ireland', 'Ireland'],
-  ['italy', 'Italy'],
-  ['latvia', 'Latvia'],
-  ['lithuania', 'Lithuania'],
-  ['netherlands', 'Netherlands'],
-  ['norway', 'Norway'],
-  ['portugal', 'Portugal'],
-  ['romania', 'Romania'],
-  ['slovakia', 'Slovakia'],
-  ['spain', 'Spain'],
-  ['sweden', 'Sweden'],
-  ['switzerland', 'Switzerland'],
-  ['ukraine', 'Ukraine'],
-  ['united-kingdom', 'United Kingdom'],
-  ['australia', 'Australia'],
-  ['canada', 'Canada'],
-  ['united-states', 'United States'],
-].map(([t, name]) => ({ tag: 'en:' + t, name }));
+/** Countries for packaged search, with the language their product names are mostly in (searched alongside English). */
+export const COUNTRIES: { tag: string; name: string; lang: string }[] = [
+  ['poland', 'Poland', 'pl'],
+  ['austria', 'Austria', 'de'],
+  ['belgium', 'Belgium', 'nl'],
+  ['czech-republic', 'Czechia', 'cs'],
+  ['denmark', 'Denmark', 'da'],
+  ['estonia', 'Estonia', 'et'],
+  ['finland', 'Finland', 'fi'],
+  ['france', 'France', 'fr'],
+  ['germany', 'Germany', 'de'],
+  ['hungary', 'Hungary', 'hu'],
+  ['ireland', 'Ireland', 'en'],
+  ['italy', 'Italy', 'it'],
+  ['latvia', 'Latvia', 'lv'],
+  ['lithuania', 'Lithuania', 'lt'],
+  ['netherlands', 'Netherlands', 'nl'],
+  ['norway', 'Norway', 'nb'],
+  ['portugal', 'Portugal', 'pt'],
+  ['romania', 'Romania', 'ro'],
+  ['slovakia', 'Slovakia', 'sk'],
+  ['spain', 'Spain', 'es'],
+  ['sweden', 'Sweden', 'sv'],
+  ['switzerland', 'Switzerland', 'de'],
+  ['ukraine', 'Ukraine', 'uk'],
+  ['united-kingdom', 'United Kingdom', 'en'],
+  ['australia', 'Australia', 'en'],
+  ['canada', 'Canada', 'en'],
+  ['united-states', 'United States', 'en'],
+].map(([t, name, lang]) => ({ tag: 'en:' + t, name, lang }));
 
 export const countryName = (tag: string) => COUNTRIES.find((c) => c.tag === tag)?.name ?? 'all countries';
 
@@ -91,8 +92,14 @@ export class RateLimit {
   }
 }
 
-const searchLimit = new RateLimit(10);
-const productLimit = new RateLimit(15);
+let searchLimit = new RateLimit(10);
+let productLimit = new RateLimit(15);
+
+/** For tests. */
+export function resetLimits() {
+  searchLimit = new RateLimit(10);
+  productLimit = new RateLimit(15);
+}
 
 interface GetOptions {
   /** How many times to try. Search is flaky on their side (see below), so it gets three. */
@@ -146,6 +153,13 @@ async function get(url: string, limit: RateLimit, fetcher: typeof fetch, opts: G
 /** Wait before a retry; tests set it to 0. */
 export const retryDelay = { ms: 700 };
 
+/**
+ * The app's own search relay on Cloudflare (relay/ in the repo), which can use Open Food Facts' newer search that
+ * browsers can't reach. Empty until it's deployed; then search goes through it and only falls back to calling
+ * Open Food Facts directly if the relay is down.
+ */
+export const relay = { url: '' };
+
 export async function offProduct(barcode: string, fetcher: typeof fetch = fetch): Promise<OffProduct> {
   const code = barcode.replace(/\D/g, '');
   const data = await get(`${BASE}/api/v2/product/${code}?fields=${FIELDS}&${APP}`, productLimit, fetcher, {
@@ -162,19 +176,43 @@ export interface OffSearchResult {
   products: OffProduct[];
 }
 
-/** Full-text search, limited to products sold in a country unless country is "". */
+const OVERLOADED =
+  'Open Food Facts’ search is overloaded right now, which happens a lot. Try again in a minute, or scan the barcode instead; that part works even when search doesn’t.';
+
+async function viaRelay(query: string, country: string, page: number, fetcher: typeof fetch): Promise<OffSearchResult> {
+  const lang = COUNTRIES.find((c) => c.tag === country)?.lang ?? 'en';
+  const params = new URLSearchParams({ q: query, country, lang, page: String(page) });
+  const res = await fetcher(`${relay.url}/search?${params}`, { signal: AbortSignal.timeout(20_000) });
+  if (res.status === 400) {
+    const data = await res.json().catch(() => ({}));
+    throw new OffError('failed', data.error || 'That search didn’t work. Try different words.');
+  }
+  if (!res.ok) throw new Error(`relay ${res.status}`);
+  const data = await res.json();
+  const products = (Array.isArray(data.products) ? data.products : []).filter((p: OffProduct) => p && p.code && offName(p));
+  return { count: Number(data.count) || products.length, products };
+}
+
+/** Full-text search, limited to products sold in a country unless country is "". Through the relay when there is one. */
 export async function offSearch(query: string, country: string, page = 1, fetcher: typeof fetch = fetch): Promise<OffSearchResult> {
+  if (relay.url) {
+    const wait = searchLimit.take();
+    if (wait) throw new OffError('busy', `Only a few searches a minute, to go easy on Open Food Facts. Try again in ${Math.ceil(wait / 1000)} s.`);
+    try {
+      return await viaRelay(query, country, page, fetcher);
+    } catch (e) {
+      if (e instanceof OffError) throw e;
+      if (navigator.onLine === false) throw new OffError('offline', OFFLINE);
+      // Relay down: try Open Food Facts directly, flaky as that is.
+    }
+  }
   const params = new URLSearchParams({ search_terms: query, search_simple: '1', action: 'process', json: '1', page_size: '20', page: String(page), fields: FIELDS });
   if (country) {
     params.set('tagtype_0', 'countries');
     params.set('tag_contains_0', 'contains');
     params.set('tag_0', country);
   }
-  const data = await get(`${BASE}/cgi/search.pl?${params}&${APP}`, searchLimit, fetcher, {
-    tries: 3,
-    delayMs: retryDelay.ms,
-    gaveUp: 'Open Food Facts’ search is overloaded right now, which happens a lot. Try again in a minute, or scan the barcode instead; that part works even when search doesn’t.',
-  });
+  const data = await get(`${BASE}/cgi/search.pl?${params}&${APP}`, searchLimit, fetcher, { tries: 3, delayMs: retryDelay.ms, gaveUp: OVERLOADED });
   const products = (Array.isArray(data.products) ? data.products : []).filter((p: OffProduct) => p && p.code && offName(p));
   return { count: Number(data.count) || products.length, products };
 }

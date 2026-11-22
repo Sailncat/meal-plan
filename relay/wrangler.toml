@@ -1,0 +1,5 @@
+# The search relay. Deployed to Cloudflare by .github/workflows/relay.yml.
+name = "meal-plan-search"
+main = "src/worker.js"
+compatibility_date = "2025-11-01"
+workers_dev = true

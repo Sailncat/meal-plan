@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { blankFood, fillBlanks, foodFromDraft, libraryMatch, nounOf, portionName, pushRecent, RECENT_MAX, toggleFavourite } from '../src/lib/foods';
 import { basicDraft, loadBasic, parseBasic, queryTokens, resetBasic, searchBasic } from '../src/lib/basicFoods';
-import { offDraft, offNutrients, offProduct, offSearch, OffError, RateLimit, retryDelay, servingPortion, type OffProduct } from '../src/lib/off';
+import { offDraft, offNutrients, offProduct, offSearch, OffError, RateLimit, relay, resetLimits, retryDelay, servingPortion, type OffProduct } from '../src/lib/off';
 
 retryDelay.ms = 0;
 import { emptyPlan, normalize } from '../src/lib/migrate';
@@ -83,6 +83,7 @@ describe('Open Food Facts product → food', () => {
 
 describe('Open Food Facts requests', () => {
   const ok = (body: unknown, status = 200) => vi.fn(async () => new Response(JSON.stringify(body), { status }));
+  beforeEach(() => resetLimits());
 
   it('looks up a barcode and asks only for the fields it needs', async () => {
     const f = ok({ status: 1, product: skyr });
@@ -137,6 +138,33 @@ describe('Open Food Facts requests', () => {
     const all = ok({ count: 0, products: [] });
     await offSearch('skyr', '', 1, all);
     expect(new URL(String((all.mock.calls[0] as unknown[])[0])).searchParams.has('tag_0')).toBe(false);
+  });
+
+  describe('through the relay', () => {
+    beforeEach(() => (relay.url = 'https://relay.test'));
+    afterEach(() => (relay.url = ''));
+
+    it('asks the relay, with the country’s language', async () => {
+      const f = ok({ count: 1, products: [skyr], from: 'new' });
+      const r = await offSearch('skyr', 'en:poland', 1, f);
+      expect(r.products[0].code).toBe(skyr.code);
+      const url = new URL(String((f.mock.calls[0] as unknown[])[0]));
+      expect(url.origin + url.pathname).toBe('https://relay.test/search');
+      expect(Object.fromEntries(url.searchParams)).toEqual({ q: 'skyr', country: 'en:poland', lang: 'pl', page: '1' });
+    });
+
+    it('falls back to Open Food Facts directly when the relay is down', async () => {
+      const f = vi.fn(async (url: string) =>
+        url.startsWith('https://relay.test') ? new Response('', { status: 500 }) : new Response(JSON.stringify({ count: 1, products: [skyr] })),
+      );
+      const r = await offSearch('skyr', '', 1, f);
+      expect(r.products.length).toBe(1);
+      expect(String((f.mock.calls[1] as unknown[])[0])).toContain('/cgi/search.pl');
+    });
+
+    it('passes on the relay’s reason for a bad search', async () => {
+      await expect(offSearch('"', '', 1, ok({ error: 'Type something to search for' }, 400))).rejects.toThrow('Type something to search for');
+    });
   });
 
   it('keeps to the rate limit', () => {

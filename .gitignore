@@ -29,3 +29,4 @@ dist
 dev-dist
 dist-preview
 test/private/
+.wrangler/
