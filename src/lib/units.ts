@@ -31,8 +31,6 @@ export const DEFAULT_SETTINGS: Settings = {
   energy: 'kcal',
   country: 'en:poland',
   weekStart: 1,
-  prepDays: [],
-  fridgeDays: 3,
   currency: 'PLN',
 };
 

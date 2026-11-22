@@ -128,7 +128,6 @@ describe('cleaning up damaged or partial plans', () => {
     const p = normalize({ app: 'meal-plan', foods: [{ name: 'Rice' }] });
     expect(p.days).toEqual({});
     expect(p.templates).toEqual([]);
-    expect(p.shopping).toEqual({ ticked: [] });
     expect(p.slots.length).toBeGreaterThan(0);
     expect(p.foods[0].per).toBe(100);
   });

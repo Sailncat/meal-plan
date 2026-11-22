@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Day, Entry, Slot } from '../lib/types';
   import { entriesNut, entryNut, entryTarget } from '../lib/calc';
-  import { entryCost } from '../lib/shopping';
+  import { entryCost } from '../lib/costs';
   import { money } from '../lib/money';
   import { fmt0 } from '../lib/num';
   import { E, EU } from '../lib/display';

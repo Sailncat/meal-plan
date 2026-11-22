@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Entry, Food } from '../lib/types';
   import { anyEaten, dayNut, foodById, suppsNut } from '../lib/calc';
-  import { dayCost } from '../lib/shopping';
+  import { dayCost } from '../lib/costs';
   import { money } from '../lib/money';
   import { fmt0, uid } from '../lib/num';
   import { E, EU, amountOf } from '../lib/display';
@@ -160,7 +160,7 @@
   </div>
 {/snippet}
 
-<WeekNav tab="plan" actions={weekActions} />
+<WeekNav actions={weekActions} />
 
 <div class="sticky">
   <WeekStrip {dates} selected={ui.date} {today} kcal={kcalByDay} protein={proteinByDay} onselect={(d) => (ui.date = d)} />

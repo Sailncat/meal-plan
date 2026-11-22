@@ -123,7 +123,7 @@ describe('metric and imperial', () => {
 describe('loading plans with units', () => {
   it('gives older plans default settings and no measures', () => {
     const p = normalize({ app: 'meal-plan', foods: [{ id: 'a', name: 'Rice' }] });
-    expect(p.settings).toEqual({ system: 'metric', energy: 'kcal', country: 'en:poland', weekStart: 1, prepDays: [], fridgeDays: 3, currency: 'PLN' });
+    expect(p.settings).toEqual({ system: 'metric', energy: 'kcal', country: 'en:poland', weekStart: 1, currency: 'PLN' });
     expect(p.foods[0].measures).toEqual([]);
     expect(p.foods[0].countBy).toBeNull();
   });
@@ -142,10 +142,10 @@ describe('loading plans with units', () => {
 
   it('keeps settings through a save and reload', () => {
     const p = emptyPlan();
-    p.settings = { system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, prepDays: [3, 0], fridgeDays: 4, currency: 'EUR' };
-    expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual({ system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, prepDays: [0, 3], fridgeDays: 4, currency: 'EUR' });
-    const bad = toPlan({ ...JSON.parse(JSON.stringify(p)), settings: { weekStart: 5, prepDays: [9, 'x', 2], fridgeDays: 40, currency: 'XYZ' } }).settings;
-    expect(bad).toMatchObject({ weekStart: 1, prepDays: [2], fridgeDays: 3, currency: 'PLN' });
+    p.settings = { system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, currency: 'EUR' };
+    expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual({ system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, currency: 'EUR' });
+    const bad = toPlan({ ...JSON.parse(JSON.stringify(p)), settings: { weekStart: 5, prepDays: [2], fridgeDays: 40, currency: 'XYZ' } }).settings;
+    expect(bad).toEqual({ system: 'metric', energy: 'kcal', country: 'en:poland', weekStart: 1, currency: 'PLN' }); // old cooking settings are dropped
   });
 });
 

@@ -2,9 +2,7 @@
   import type { Food } from '../lib/types';
   import { allDays, foodNut, foodUsedIn } from '../lib/calc';
   import { ALL_NUTRIENTS, NUTRIENTS } from '../lib/nutrients';
-  import { AISLES } from '../lib/aisles';
   import { currencySymbol } from '../lib/money';
-  import type { AisleId } from '../lib/types';
   import { fmt0, fmt1, uid } from '../lib/num';
   import { baseAmount, measureOf, measuresOf, plural } from '../lib/units';
   import { E, EU, amountOf, fromE, system } from '../lib/display';
@@ -29,10 +27,7 @@
     if (size == null || !(size > 0)) delete food.pack;
     else food.pack = { size, price: price != null && price >= 0 ? price : null };
   }
-  function setAisle(a: AisleId) {
-    if (a === 'other') delete food.aisle;
-    else food.aisle = a;
-  }
+
   const MAIN = ['carbs', 'fat'];
   const more = NUTRIENTS.filter((n) => !MAIN.includes(n.k));
   const filled = $derived(more.filter((n) => food.nut[n.k] != null).length);
@@ -115,7 +110,6 @@
         d.supps = d.supps.filter((id) => id !== food.id);
         d.suppsTaken = d.suppsTaken.filter((id) => id !== food.id);
       }
-      p.shopping.ticked = p.shopping.ticked.filter((id) => id !== food.id);
     });
   }
 </script>
@@ -202,13 +196,7 @@
       </label>
 
       {#if !food.supplement}
-        <section class="shop" aria-label="Shopping">
-          <label>
-            <span class="label">Shop aisle</span>
-            <select class="field" value={food.aisle ?? 'other'} onchange={(e) => setAisle(e.currentTarget.value as AisleId)}>
-              {#each AISLES as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
-            </select>
-          </label>
+        <section class="shop" aria-label="Pack and price">
           <label>
             <span class="label">Pack size ({food.unit || 'g'})</span>
             <NumInput value={food.pack?.size ?? null} label="Pack size in {food.unit}" placeholder="e.g. 500" onchange={(v) => setPack(v, food.pack?.price ?? null)} />
@@ -223,7 +211,7 @@
             />
           </label>
         </section>
-        <p class="note hint">For the shopping list: which aisle it’s in, and the pack you buy, so the list can say “2 packs” and add up costs.</p>
+        <p class="note hint">The pack you buy and what it costs, so meals and days on the Plan tab show what they cost.</p>
       {/if}
 
       {#if canFill}

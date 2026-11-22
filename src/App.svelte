@@ -2,8 +2,6 @@
   import { onMount, untrack } from 'svelte';
   import { load, queueSave, store } from './lib/store.svelte';
   import PlanView from './views/PlanView.svelte';
-  import PrepView from './views/PrepView.svelte';
-  import ShopView from './views/ShopView.svelte';
   import RecipesView from './views/RecipesView.svelte';
   import FoodsView from './views/FoodsView.svelte';
   import NutrientsView from './views/NutrientsView.svelte';
@@ -19,8 +17,8 @@
     { id: 'nutrients', label: 'Nutrients', icon: 'M5 20V10M10 20V4M15 20v-7M20 20v-11M3 20h18' },
     { id: 'me', label: 'Me', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c.8-3.6 3.9-6 7.5-6s6.7 2.4 7.5 6' },
   ] as const;
-  // Settings lives inside the Me tab, and Prep and Shop inside Plan, so they have routes but no buttons of their own.
-  const INNER = { options: 'me', prep: 'plan', shop: 'plan' } as const;
+  // Settings lives inside the Me tab, so it has a route but no button of its own.
+  const INNER = { options: 'me' } as const;
   type ViewId = (typeof VIEWS)[number]['id'] | keyof typeof INNER;
   const current = (v: ViewId, id: string) => v === id || (v in INNER && INNER[v as keyof typeof INNER] === id);
 
@@ -81,10 +79,6 @@
     <Welcome />
   {:else if view === 'plan'}
     <PlanView />
-  {:else if view === 'prep'}
-    <PrepView />
-  {:else if view === 'shop'}
-    <ShopView />
   {:else if view === 'recipes'}
     <RecipesView />
   {:else if view === 'foods'}

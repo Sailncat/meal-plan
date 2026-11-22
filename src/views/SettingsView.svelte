@@ -5,9 +5,7 @@
   import { COUNTRIES } from '../lib/off';
   import { CURRENCIES } from '../lib/money';
   import { allDays } from '../lib/calc';
-  import { WEEKDAYS_SHORT } from '../lib/types';
   import { showToast, store, undoable } from '../lib/store.svelte';
-  import NumInput from '../components/NumInput.svelte';
 
   const plan = $derived(store.plan!);
   let fileInput: HTMLInputElement | undefined = $state();
@@ -62,17 +60,7 @@
     }
   }
 
-  // ---------- weeks and cooking ----------
-  const order = $derived(Array.from({ length: 7 }, (_, i) => (i + plan.settings.weekStart) % 7));
-  function cookOnPrepDays(on: boolean) {
-    plan.settings.prepDays = on ? [0] : [];
-  }
-  function togglePrepDay(d: number) {
-    const days = plan.settings.prepDays;
-    if (days.includes(d)) {
-      if (days.length > 1) plan.settings.prepDays = days.filter((x) => x !== d);
-    } else plan.settings.prepDays = [...days, d].sort();
-  }
+  // ---------- weeks ----------
   function removeTemplate(id: string) {
     const t = plan.templates.find((x) => x.id === id);
     undoable(`Deleted the saved week “${t?.name ?? ''}”`, (p) => {
@@ -167,7 +155,7 @@
   {/if}
 </div>
 
-<h2 class="bar">Weeks and cooking</h2>
+<h2 class="bar">Weeks</h2>
 <div class="panel pad">
   <div class="unit-row">
     <span class="label">Weeks start on</span>
@@ -176,41 +164,6 @@
       <button role="radio" aria-checked={plan.settings.weekStart === 0} onclick={() => (plan.settings.weekStart = 0)}>Sunday</button>
     </div>
   </div>
-  <div class="unit-row">
-    <span class="label">Batches get cooked</span>
-    <div class="seg" role="radiogroup" aria-label="Batches get cooked">
-      <button role="radio" aria-checked={!plan.settings.prepDays.length} onclick={() => cookOnPrepDays(false)}>
-        When first eaten<small>leftovers fill the next meals</small>
-      </button>
-      <button role="radio" aria-checked={!!plan.settings.prepDays.length} onclick={() => cookOnPrepDays(true)}>
-        On prep days<small>cook ahead for the week</small>
-      </button>
-    </div>
-  </div>
-  {#if plan.settings.prepDays.length}
-    <div class="days" role="group" aria-label="Prep days">
-      {#each order as d (d)}
-        {@const on = plan.settings.prepDays.includes(d)}
-        <button class="day-chip" class:on aria-pressed={on} onclick={() => togglePrepDay(d)}>{WEEKDAYS_SHORT[d]}</button>
-      {/each}
-    </div>
-  {/if}
-  <label class="keep">
-    <span class="label">Leftovers keep for</span>
-    <span class="keep-row">
-      <NumInput
-        value={plan.settings.fridgeDays}
-        label="Days leftovers keep"
-        onchange={(v) => (plan.settings.fridgeDays = Math.min(14, Math.max(1, Math.round(v ?? 3))))}
-      />
-      <span>days in the fridge</span>
-    </span>
-  </label>
-  <p class="note">
-    The Prep tab works out what to cook from this. Food safety agencies generally say cooked leftovers keep 3 to 4 days in the fridge;
-    freeze anything for later than that.
-  </p>
-
   <span class="label saved-h">Saved weeks</span>
   {#if plan.templates.length}
     <ul class="slots saved">
@@ -236,7 +189,7 @@
       {/each}
     </select>
   </label>
-  <p class="note">Add what a pack costs to each food on the Foods tab, and the app adds up what meals, days and the shopping list cost.</p>
+  <p class="note">Add what a pack costs to each food on the Foods tab, and meals and days on the Plan tab show what they cost.</p>
 </div>
 
 <h2 class="bar">About</h2>
@@ -265,37 +218,6 @@
   .country {
     display: block;
     max-width: 22rem;
-  }
-  .days {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0 0 0.9rem;
-  }
-  .day-chip {
-    min-width: 3rem;
-    min-height: 2.4rem;
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    background: var(--surface);
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .day-chip.on {
-    background: var(--bar);
-    border-color: var(--bar);
-    color: var(--bar-ink);
-  }
-  .keep {
-    display: block;
-  }
-  .keep-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .keep-row :global(.field) {
-    width: 4.5rem;
   }
   .saved-h {
     display: block;

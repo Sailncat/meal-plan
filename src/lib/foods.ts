@@ -1,6 +1,6 @@
 // Building foods for the library: blank ones, ones picked from a database, and filling gaps from a database.
 
-import type { AisleId, Food, FoodSource, Measure, Nutrients, Pack, Plan } from './types';
+import type { Food, FoodSource, Measure, Nutrients, Pack, Plan } from './types';
 import { uid } from './num';
 
 export const RECENT_MAX = 15;
@@ -28,8 +28,6 @@ export interface FoodDraft {
   barcode?: string;
   /** Pack size as printed, like "500 g". */
   quantity: string;
-  /** Shop aisle guessed from the database's category. */
-  aisle: AisleId;
   /** Pack size from the label, price unknown. */
   pack: Pack | null;
 }
@@ -79,14 +77,13 @@ export function foodFromDraft(d: FoodDraft, name: string): Food {
     measures,
     countBy: d.countBy != null && measures[d.countBy] ? measures[d.countBy].id : null,
     ...(d.source ? { source: { ...d.source } } : {}),
-    ...(d.aisle !== 'other' ? { aisle: d.aisle } : {}),
     ...(d.pack ? { pack: { ...d.pack } } : {}),
   });
 }
 
 /** A draft for a product no database knows: values come from the label. */
 export function labelDraft(barcode = ''): FoodDraft {
-  return { name: '', brand: '', unit: 'g', nut: {}, portions: [], countBy: null, source: null, url: '', quantity: '', barcode, aisle: 'other', pack: null };
+  return { name: '', brand: '', unit: 'g', nut: {}, portions: [], countBy: null, source: null, url: '', quantity: '', barcode, pack: null };
 }
 
 /** The food already in the library that came from this database entry, so picking it twice doesn't make a copy. */

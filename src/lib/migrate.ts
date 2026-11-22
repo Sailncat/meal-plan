@@ -5,7 +5,6 @@ import type { Activity, Aim, Day, Entry, Food, MacroKey, Pack, Plan, Profile, Ra
 import { num, uid } from './num';
 import { DEFAULT_SETTINGS, measureOf } from './units';
 import { RECENT_MAX } from './foods';
-import { isAisle } from './aisles';
 import { isCurrency } from './money';
 import { isDate, mondayIndex, today, weekDates } from './dates';
 
@@ -83,13 +82,12 @@ export function emptyPlan(): Plan {
   return {
     app: 'meal-plan',
     version: 3,
-    settings: { ...DEFAULT_SETTINGS, prepDays: [] },
+    settings: { ...DEFAULT_SETTINGS },
     foods: [],
     recipes: [],
     slots,
     days: {},
     templates: [],
-    shopping: { ticked: [] },
     targets: defaultTargets(),
     profile: defaultProfile(),
     weights: [],
@@ -137,7 +135,6 @@ export function normalize(p: Record<string, any>, now = new Date()): Plan {
       .filter((m: { size: number }) => m.size > 0),
     countBy: typeof f.countBy === 'string' ? f.countBy : null,
     ...(isObj(f.source) && (f.source.db === 'off' || f.source.db === 'usda') && str(f.source.id) ? { source: { db: f.source.db, id: str(f.source.id) } } : {}),
-    ...(isAisle(f.aisle) ? { aisle: f.aisle } : {}),
     ...(packOf(f.pack) ? { pack: packOf(f.pack)! } : {}),
   }));
   const foodMap = new Map(foods.map((f) => [f.id, f]));
@@ -237,7 +234,6 @@ export function normalize(p: Record<string, any>, now = new Date()): Plan {
   }
   const weights: WeightEntry[] = [...byDate].sort(([a], [b]) => a.localeCompare(b)).map(([date, kg]) => ({ date, kg }));
   const m = isObj(p.meta) ? p.meta : {};
-  const fridge = Math.round(num(st.fridgeDays));
   const refs = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string' && /^[rf]:/.test(x) && exists(x)))];
   return {
     app: 'meal-plan',
@@ -247,8 +243,6 @@ export function normalize(p: Record<string, any>, now = new Date()): Plan {
       energy: st.energy === 'kJ' ? 'kJ' : 'kcal',
       country: typeof st.country === 'string' && /^(|[a-z]{2}:[a-z-]+)$/.test(st.country) ? st.country : DEFAULT_SETTINGS.country,
       weekStart,
-      prepDays: [...new Set<number>((Array.isArray(st.prepDays) ? st.prepDays : []).filter((d: unknown) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))].sort(),
-      fridgeDays: fridge >= 1 && fridge <= 14 ? fridge : DEFAULT_SETTINGS.fridgeDays,
       currency: isCurrency(st.currency) ? st.currency : DEFAULT_SETTINGS.currency,
     },
     foods,
@@ -256,7 +250,6 @@ export function normalize(p: Record<string, any>, now = new Date()): Plan {
     slots,
     days,
     templates,
-    shopping: { ticked: [...new Set<string>((isObj(p.shopping) && Array.isArray(p.shopping.ticked) ? p.shopping.ticked : []).filter((x: unknown) => typeof x === 'string' && foodIds.has(x)))] },
     targets,
     profile,
     weights,

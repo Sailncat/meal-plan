@@ -4,11 +4,8 @@ import { emptyPlan, normalize } from '../src/lib/migrate';
 import { addDays, daysBetween, rangeText, weekDates, weekday, weekStartOf, dayTitle } from '../src/lib/dates';
 import { applyTemplate, copyWeek, ensureDay, saveTemplate, weekIsEmpty } from '../src/lib/weeks';
 import { anyEaten, dayNut } from '../src/lib/calc';
-import { planBatches, prepDayFor } from '../src/lib/batches';
-import { dayCost, entryCost, foodCost, shoppingList } from '../src/lib/shopping';
-import { aisleFromOff, aisleFromUsda } from '../src/lib/aisles';
+import { dayCost, entryCost, foodCost } from '../src/lib/costs';
 import { money } from '../src/lib/money';
-import { amountText } from '../src/lib/units';
 
 // Week of Monday 16 Nov 2026.
 const MON = '2026-11-16';
@@ -32,9 +29,9 @@ const entry = (ref: string, amount: number, over: Partial<Entry> = {}): Entry =>
 function setup(): Plan {
   const p = emptyPlan();
   p.foods.push(
-    food('beef', 250, { aisle: 'meat', pack: { size: 500, price: 20 } }),
-    food('rice', 360, { aisle: 'grains', pack: { size: 1000, price: 8 } }),
-    food('egg', 143, { aisle: 'dairy', measures: [{ id: 'm-egg', name: 'egg', size: 60 }], countBy: 'm-egg', pack: { size: 600, price: 9 } }),
+    food('beef', 250, { pack: { size: 500, price: 20 } }),
+    food('rice', 360, { pack: { size: 1000, price: 8 } }),
+    food('egg', 143, { measures: [{ id: 'm-egg', name: 'egg', size: 60 }], countBy: 'm-egg', pack: { size: 600, price: 9 } }),
     food('oats', 380),
     food('d3', 0, { unit: 'tablet', per: 1, supplement: true, nut: { vitD: 50 } }),
   );
@@ -139,95 +136,6 @@ describe('planned and eaten', () => {
   });
 });
 
-describe('batches', () => {
-  it('cooks when first needed; leftovers fill the next meal', () => {
-    const p = setup();
-    // One pot is two dinners: Mon and Tue share one, Wed and Thu the next.
-    for (let i = 0; i < 4; i++) ensureDay(p, day(i)).meals.dinner.push(entry('r:pot', 1));
-    const b = planBatches(p, MON, day(6));
-    expect(b.map((x) => [x.cookDate, x.batches, x.uses.map((u) => u.date)])).toEqual([
-      [MON, 1, [MON, day(1)]],
-      [day(2), 1, [day(2), day(3)]],
-    ]);
-    expect(b.every((x) => x.spare === 0 && !x.late.length)).toBe(true);
-  });
-
-  it('doesn’t stretch leftovers past how long they keep', () => {
-    const p = setup();
-    p.settings.fridgeDays = 2;
-    ensureDay(p, day(0)).meals.dinner.push(entry('r:pot', 1));
-    ensureDay(p, day(3)).meals.dinner.push(entry('r:pot', 1));
-    const b = planBatches(p, MON, day(6));
-    expect(b.map((x) => x.cookDate)).toEqual([day(0), day(3)]);
-    expect(b[0].spare).toBe(1);
-  });
-
-  it('makes enough batches for a big meal', () => {
-    const p = setup();
-    ensureDay(p, MON).meals.dinner.push(entry('r:pot', 3));
-    const [b] = planBatches(p, MON, MON);
-    expect(b).toMatchObject({ batches: 2, made: 4, spare: 1 });
-  });
-
-  it('carries a pot cooked last Sunday into Monday', () => {
-    const p = setup();
-    ensureDay(p, day(-1)).meals.dinner.push(entry('r:pot', 1));
-    ensureDay(p, MON).meals.dinner.push(entry('r:pot', 1));
-    const b = planBatches(p, MON, day(6));
-    expect(b).toHaveLength(1);
-    expect(b[0].cookDate).toBe(day(-1));
-  });
-
-  it('cooks on prep days when they’re set, and flags meals past the leftovers limit', () => {
-    const p = setup();
-    p.settings.prepDays = [0, 3]; // Sunday and Wednesday
-    expect(prepDayFor('2026-11-17', [0, 3])).toBe('2026-11-15');
-    expect(prepDayFor('2026-11-18', [0, 3])).toBe('2026-11-18');
-    for (let i = 0; i < 7; i++) ensureDay(p, day(i)).meals.dinner.push(entry('r:pot', 1));
-    const b = planBatches(p, MON, day(6));
-    // Sun 15 covers Mon–Tue (2 servings, 1 batch); Wed 18 covers Wed–Sat (4 = 2 batches); Sun 22 covers Sun.
-    expect(b.map((x) => [x.cookDate, x.batches, x.uses.length])).toEqual([
-      ['2026-11-15', 1, 2],
-      ['2026-11-18', 2, 4],
-      ['2026-11-22', 1, 1],
-    ]);
-    expect(b[1].late.map((u) => u.date)).toEqual([]); // Saturday is 3 days after Wednesday: still fine
-    p.settings.fridgeDays = 2;
-    expect(planBatches(p, MON, day(6))[1].late.map((u) => u.date)).toEqual(['2026-11-21']);
-  });
-
-  it('leaves out swapped meals and unplanned extras', () => {
-    const p = setup();
-    ensureDay(p, MON).meals.dinner.push(entry('r:pot', 1, { skipped: true }), entry('r:pot', 1, { extra: true, eaten: true }));
-    expect(planBatches(p, MON, MON)).toEqual([]);
-  });
-});
-
-describe('shopping list', () => {
-  it('buys whole batches, counted foods in pieces, and whole packs', () => {
-    const p = setup();
-    for (let i = 0; i < 3; i++) ensureDay(p, day(i)).meals.dinner.push(entry('r:pot', 1)); // 2 pots (4 servings) for 3 dinners
-    ensureDay(p, MON).meals.breakfast.push(entry('f:egg', 3, { measure: 'm-egg' }), entry('f:oats', 90));
-    ensureDay(p, MON).supps.push('d3');
-    const { items, batches } = shoppingList(p, MON, day(6));
-    expect(batches.map((b) => b.batches)).toEqual([1, 1]);
-    const by = Object.fromEntries(items.map((i) => [i.food.id, i]));
-    expect(Object.keys(by).sort()).toEqual(['beef', 'egg', 'oats', 'rice']); // no supplements
-    expect(by.beef).toMatchObject({ base: 1400, aisle: 'meat', packs: 3, cost: 60 });
-    expect(by.rice).toMatchObject({ base: 600, packs: 1, cost: 8 });
-    expect(amountText(by.egg.food, by.egg.base / 60, 'm-egg', 'metric')).toBe('3 eggs');
-    expect(by.egg).toMatchObject({ packs: 1, cost: 9 });
-    expect(by.oats).toMatchObject({ base: 90, aisle: 'other', packs: null, cost: null });
-  });
-
-  it('only buys for batches cooked inside the dates', () => {
-    const p = setup();
-    ensureDay(p, day(-1)).meals.dinner.push(entry('r:pot', 1));
-    ensureDay(p, MON).meals.dinner.push(entry('r:pot', 1)); // leftover from Sunday's pot
-    expect(shoppingList(p, MON, day(6)).items).toEqual([]);
-  });
-});
-
 describe('costs', () => {
   it('prices what’s used, not whole packs', () => {
     const p = setup();
@@ -249,21 +157,5 @@ describe('costs', () => {
     expect(money(1234.5, 'GBP')).toBe('£1,234.50');
     expect(money(950, 'HUF')).toBe('950 Ft');
     expect(money(3, 'CHF')).toBe('CHF 3.00');
-  });
-});
-
-describe('aisles', () => {
-  it('guesses from USDA food groups, minding canned and frozen', () => {
-    expect(aisleFromUsda('Dairy and Egg Products')).toBe('dairy');
-    expect(aisleFromUsda('Vegetables and Vegetable Products', 'Tomatoes, red, ripe, canned')).toBe('tins');
-    expect(aisleFromUsda('Vegetables and Vegetable Products', 'Peas, green, frozen')).toBe('frozen');
-    expect(aisleFromUsda('Nonsense')).toBe('other');
-  });
-  it('guesses from Open Food Facts categories, most telling first', () => {
-    expect(aisleFromOff(['en:plant-based-foods', 'en:vegetables', 'en:canned-foods', 'en:canned-vegetables'])).toBe('tins');
-    expect(aisleFromOff(['en:dairies', 'en:fermented-milk-products', 'en:cheeses'])).toBe('dairy');
-    expect(aisleFromOff(['en:frozen-foods', 'en:vegetables'])).toBe('frozen');
-    expect(aisleFromOff(['en:snacks', 'en:sweet-snacks', 'en:chocolates'])).toBe('snacks');
-    expect(aisleFromOff(undefined)).toBe('other');
   });
 });

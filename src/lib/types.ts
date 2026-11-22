@@ -36,13 +36,9 @@ export interface Food {
   countBy: string | null;
   /** Set when it was picked from a database; used for credit and for finding missing values. */
   source?: FoodSource;
-  /** Shop aisle for the shopping list; missing means "other". */
-  aisle?: AisleId;
-  /** The pack it's bought in, for "packs to buy" and costs. */
+  /** The pack it's bought in, for what meals and days cost. */
   pack?: Pack;
 }
-
-export type AisleId = 'fruitveg' | 'meat' | 'dairy' | 'bakery' | 'grains' | 'tins' | 'frozen' | 'ready' | 'snacks' | 'drinks' | 'pantry' | 'other';
 
 export interface Pack {
   /** How much one pack holds, in the food's base unit (500 g, 1000 ml, 10 eggs). */
@@ -172,10 +168,6 @@ export interface Settings {
   country: string;
   /** First day of the week: 1 = Monday, 0 = Sunday. */
   weekStart: 0 | 1;
-  /** Weekdays batches are cooked on (0 = Sunday … 6 = Saturday). Empty: each batch is cooked the day it's first eaten. */
-  prepDays: number[];
-  /** How many days after cooking leftovers can still be eaten. */
-  fridgeDays: number;
   /** ISO currency code for prices, like "PLN". */
   currency: string;
 }
@@ -190,8 +182,6 @@ export interface Plan {
   /** Planned days by date (YYYY-MM-DD). Days with nothing in them aren't stored. */
   days: Record<string, Day>;
   templates: Template[];
-  /** Shopping list items ticked off, by food id. */
-  shopping: { ticked: string[] };
   targets: Targets;
   profile: Profile;
   /** Oldest first. */
