@@ -1,6 +1,8 @@
 <script lang="ts">
-  import type { Day, Slot } from '../lib/types';
+  import type { Day, Entry, Slot } from '../lib/types';
   import { entriesNut, entryNut, entryTarget } from '../lib/calc';
+  import { entryCost } from '../lib/shopping';
+  import { money } from '../lib/money';
   import { fmt0 } from '../lib/num';
   import { E, EU } from '../lib/display';
   import { store, undoable } from '../lib/store.svelte';
@@ -8,28 +10,47 @@
   import AmountInput from './AmountInput.svelte';
 
   interface Props {
-    day: Day;
+    /** Undefined while nothing is planned that day. */
+    day: Day | undefined;
     slot: Slot;
+    /** Today or earlier: meals can be ticked off as eaten, or swapped. */
+    canTick: boolean;
     onadd: () => void;
+    /** Swap a planned meal for what was eaten instead. */
+    onswap: (e: Entry) => void;
   }
-  let { day, slot, onadd }: Props = $props();
+  let { day, slot, canTick, onadd, onswap }: Props = $props();
 
   const plan = $derived(store.plan!);
-  const entries = $derived(day.meals[slot.id] ?? []);
+  const entries = $derived(day?.meals[slot.id] ?? []);
   const kcal = $derived(entriesNut(plan, entries, 'kcal'));
   const protein = $derived(entriesNut(plan, entries, 'protein'));
+  const currency = $derived(plan.settings.currency);
 
-  function nameOf(e: (typeof entries)[number]) {
+  function nameOf(e: Entry) {
     const t = entryTarget(plan, e);
     if (!t) return 'Deleted item';
     return t.kind === 'recipe' ? t.recipe.name || 'Unnamed recipe' : t.food.name || 'Unnamed food';
+  }
+  const byId = (id: string | undefined) => entries.find((x) => x.id === id);
+  const swapFor = (e: Entry) => entries.find((x) => x.swapOf === e.id);
+
+  function remove(e: Entry) {
+    const name = nameOf(e);
+    undoable(e.extra ? `Removed ${name}` : `Removed ${name} from ${slot.name || 'this meal'}`, () => {
+      const list = day!.meals[slot.id];
+      // Taking out a swap puts the planned meal back; taking out a swapped meal takes its swap with it.
+      const linked = e.extra ? list.find((x) => x.id === e.swapOf) : list.find((x) => x.swapOf === e.id);
+      if (e.extra && linked) delete linked.skipped;
+      day!.meals[slot.id] = list.filter((x) => x.id !== e.id && !(!e.extra && linked && x.id === linked.id));
+    });
   }
 </script>
 
 <section class="slot card" aria-labelledby="slot-{slot.id}">
   <header>
     <h2 id="slot-{slot.id}">{slot.name || 'Unnamed meal'}</h2>
-    {#if entries.length}
+    {#if entries.some((e) => !e.extra)}
       <span class="sum tabular">{fmt0(E(kcal))} {EU()} · {fmt0(protein)} g protein</span>
     {/if}
   </header>
@@ -37,13 +58,39 @@
   {#each entries as e (e.id)}
     {@const name = nameOf(e)}
     {@const t = entryTarget(plan, e)}
-    <div class="entry">
+    {@const cost = entryCost(plan, e)}
+    <div class="entry" class:tick={canTick} class:skipped={e.skipped} class:extra={e.extra}>
+      {#if canTick}
+        {#if e.skipped}
+          <span class="check-gap" aria-hidden="true"></span>
+        {:else}
+          <button
+            class="check"
+            class:on={e.eaten}
+            aria-pressed={!!e.eaten}
+            aria-label="{name}: {e.eaten ? 'eaten' : 'not eaten yet'}"
+            disabled={e.extra}
+            onclick={() => (e.eaten = !e.eaten)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+          </button>
+        {/if}
+      {/if}
       <div class="what">
         <span class="name">{name}</span>
-        <small class="tabular">{fmt0(E(entryNut(plan, e, 'kcal')))} {EU()} · {fmt0(entryNut(plan, e, 'protein'))} g protein</small>
+        <small class="tabular">
+          {#if e.skipped}
+            Swapped for {swapFor(e) ? nameOf(swapFor(e)!) : 'something else'}
+          {:else}
+            {#if e.extra}Instead of {nameOf(byId(e.swapOf) ?? e)} ·{/if}
+            {fmt0(E(entryNut(plan, e, 'kcal')))} {EU()} · {fmt0(entryNut(plan, e, 'protein'))} g protein{#if cost.known} · {cost.partial ? '≥ ' : ''}{money(cost.total, currency)}{/if}
+          {/if}
+        </small>
       </div>
       <div class="amt">
-        {#if t?.kind === 'food'}
+        {#if e.skipped}
+          <button class="btn small ghost" onclick={() => remove(swapFor(e) ?? e)}>Undo swap</button>
+        {:else if t?.kind === 'food'}
           <AmountInput
             food={t.food}
             amount={e.amount}
@@ -59,16 +106,16 @@
           <span class="unit">{e.amount === 1 ? 'serving' : 'servings'}</span>
         {/if}
       </div>
-      <button
-        class="icon-btn x"
-        aria-label="Remove {name}"
-        onclick={() =>
-          undoable(`Removed ${name} from ${slot.name || 'this meal'}`, () => {
-            const list = day.meals[slot.id];
-            const k = list.findIndex((x) => x.id === e.id);
-            if (k >= 0) list.splice(k, 1);
-          })}>×</button
-      >
+      <div class="acts">
+        {#if canTick && !e.extra && !e.skipped}
+          <button class="icon-btn swap" aria-label="Swap {name} for what you ate instead" title="Ate something else" onclick={() => onswap(e)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" /></svg>
+          </button>
+        {/if}
+        {#if !e.skipped}
+          <button class="icon-btn x" aria-label="Remove {name}" onclick={() => remove(e)}>×</button>
+        {/if}
+      </div>
     </div>
   {/each}
 
@@ -102,12 +149,19 @@
   .entry {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: 'what amt acts';
     align-items: center;
     gap: 0.5rem;
     padding: 0.45rem 0.4rem 0.45rem 0.85rem;
     border-top: 1px solid var(--line);
   }
+  .entry.tick {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: 'check what amt acts';
+    padding-left: 0.5rem;
+  }
   .what {
+    grid-area: what;
     min-width: 0;
   }
   .name {
@@ -119,10 +173,23 @@
     color: var(--muted);
     font-size: 0.8rem;
   }
+  .skipped .name {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+  .extra .what small {
+    color: var(--ink);
+  }
   .amt {
+    grid-area: amt;
     display: flex;
     align-items: center;
     gap: 0.35rem;
+  }
+  .acts {
+    grid-area: acts;
+    display: flex;
+    align-items: center;
   }
   .amt > :global(.field.num) {
     width: 4.25rem;
@@ -135,6 +202,45 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .check,
+  .check-gap {
+    grid-area: check;
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  .check {
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--line);
+    border-radius: 50%;
+    background: var(--surface);
+    color: transparent;
+    cursor: pointer;
+  }
+  .check:disabled {
+    cursor: default;
+  }
+  .check.on {
+    background: var(--ok);
+    border-color: var(--ok);
+    color: #fff;
+  }
+  .check svg,
+  .swap svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .swap svg {
+    stroke-width: 2;
+  }
+  .swap {
+    color: var(--muted);
   }
   .add {
     display: block;
@@ -152,12 +258,16 @@
     border-color: var(--bar);
     color: var(--ink);
   }
-  /* Narrow phones: name and × on top, calories on the left and the amount on the right below. */
+  /* Narrow phones: name and buttons on top, calories on the left and the amount on the right below. */
   @media (max-width: 26rem) {
     .entry {
       grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas: 'name x' 'mac amt';
+      grid-template-areas: 'name acts' 'mac amt';
       row-gap: 0.15rem;
+    }
+    .entry.tick {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: 'check name acts' 'check mac amt';
     }
     .what {
       display: contents;
@@ -167,13 +277,6 @@
     }
     .what small {
       grid-area: mac;
-    }
-    .amt {
-      grid-area: amt;
-    }
-    .entry .icon-btn {
-      grid-area: x;
-      justify-self: end;
     }
   }
 </style>

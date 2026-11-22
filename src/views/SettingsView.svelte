@@ -3,7 +3,11 @@
   import { PlanFormatError, toPlan } from '../lib/migrate';
   import { uid } from '../lib/num';
   import { COUNTRIES } from '../lib/off';
+  import { CURRENCIES } from '../lib/money';
+  import { allDays } from '../lib/calc';
+  import { WEEKDAYS_SHORT } from '../lib/types';
   import { showToast, store, undoable } from '../lib/store.svelte';
+  import NumInput from '../components/NumInput.svelte';
 
   const plan = $derived(store.plan!);
   let fileInput: HTMLInputElement | undefined = $state();
@@ -18,7 +22,7 @@
   function addSlot() {
     const id = uid();
     plan.slots.push({ id, name: '' });
-    for (const d of plan.week) d.meals[id] = [];
+    for (const d of allDays(plan)) d.meals[id] = [];
     queueMicrotask(() => document.querySelector<HTMLInputElement>(`#slot-name-${id}`)?.focus());
   }
   function moveSlot(i: number, by: number) {
@@ -29,10 +33,10 @@
   }
   function removeSlot(i: number) {
     const s = plan.slots[i];
-    const count = plan.week.reduce((t, d) => t + (d.meals[s.id]?.length ?? 0), 0);
-    undoable(`Removed ${s.name || 'the meal'}${count ? ` and the ${count} thing${count === 1 ? '' : 's'} in it` : ''}`, (p) => {
+    const count = Object.values(plan.days).reduce((t, d) => t + (d.meals[s.id]?.length ?? 0), 0);
+    undoable(`Removed ${s.name || 'the meal'}${count ? ` and the ${count} thing${count === 1 ? '' : 's'} planned in it` : ''}`, (p) => {
       p.slots.splice(i, 1);
-      for (const d of p.week) delete d.meals[s.id];
+      for (const d of allDays(p)) delete d.meals[s.id];
     });
   }
 
@@ -58,12 +62,21 @@
     }
   }
 
-  function clearWeek() {
-    undoable('Cleared the week', (p) => {
-      for (const d of p.week) {
-        for (const k of Object.keys(d.meals)) d.meals[k] = [];
-        d.supps = [];
-      }
+  // ---------- weeks and cooking ----------
+  const order = $derived(Array.from({ length: 7 }, (_, i) => (i + plan.settings.weekStart) % 7));
+  function cookOnPrepDays(on: boolean) {
+    plan.settings.prepDays = on ? [0] : [];
+  }
+  function togglePrepDay(d: number) {
+    const days = plan.settings.prepDays;
+    if (days.includes(d)) {
+      if (days.length > 1) plan.settings.prepDays = days.filter((x) => x !== d);
+    } else plan.settings.prepDays = [...days, d].sort();
+  }
+  function removeTemplate(id: string) {
+    const t = plan.templates.find((x) => x.id === id);
+    undoable(`Deleted the saved week “${t?.name ?? ''}”`, (p) => {
+      p.templates = p.templates.filter((x) => x.id !== id);
     });
   }
 </script>
@@ -154,10 +167,76 @@
   {/if}
 </div>
 
-<h2 class="bar">Week</h2>
+<h2 class="bar">Weeks and cooking</h2>
 <div class="panel pad">
-  <p class="note top">Empties every meal and supplement for all seven days. Your recipes and foods stay.</p>
-  <button class="btn danger" onclick={clearWeek}>Clear the week</button>
+  <div class="unit-row">
+    <span class="label">Weeks start on</span>
+    <div class="seg" role="radiogroup" aria-label="Weeks start on">
+      <button role="radio" aria-checked={plan.settings.weekStart === 1} onclick={() => (plan.settings.weekStart = 1)}>Monday</button>
+      <button role="radio" aria-checked={plan.settings.weekStart === 0} onclick={() => (plan.settings.weekStart = 0)}>Sunday</button>
+    </div>
+  </div>
+  <div class="unit-row">
+    <span class="label">Batches get cooked</span>
+    <div class="seg" role="radiogroup" aria-label="Batches get cooked">
+      <button role="radio" aria-checked={!plan.settings.prepDays.length} onclick={() => cookOnPrepDays(false)}>
+        When first eaten<small>leftovers fill the next meals</small>
+      </button>
+      <button role="radio" aria-checked={!!plan.settings.prepDays.length} onclick={() => cookOnPrepDays(true)}>
+        On prep days<small>cook ahead for the week</small>
+      </button>
+    </div>
+  </div>
+  {#if plan.settings.prepDays.length}
+    <div class="days" role="group" aria-label="Prep days">
+      {#each order as d (d)}
+        {@const on = plan.settings.prepDays.includes(d)}
+        <button class="day-chip" class:on aria-pressed={on} onclick={() => togglePrepDay(d)}>{WEEKDAYS_SHORT[d]}</button>
+      {/each}
+    </div>
+  {/if}
+  <label class="keep">
+    <span class="label">Leftovers keep for</span>
+    <span class="keep-row">
+      <NumInput
+        value={plan.settings.fridgeDays}
+        label="Days leftovers keep"
+        onchange={(v) => (plan.settings.fridgeDays = Math.min(14, Math.max(1, Math.round(v ?? 3))))}
+      />
+      <span>days in the fridge</span>
+    </span>
+  </label>
+  <p class="note">
+    The Prep tab works out what to cook from this. Food safety agencies generally say cooked leftovers keep 3 to 4 days in the fridge;
+    freeze anything for later than that.
+  </p>
+
+  <span class="label saved-h">Saved weeks</span>
+  {#if plan.templates.length}
+    <ul class="slots saved">
+      {#each plan.templates as t (t.id)}
+        <li>
+          <input class="field" bind:value={t.name} aria-label="Saved week name" />
+          <button class="icon-btn x" aria-label="Delete {t.name}" onclick={() => removeTemplate(t.id)}>×</button>
+        </li>
+      {/each}
+    </ul>
+  {:else}
+    <p class="note">None yet. Save a week from the ⋯ menu on the Plan tab to start other weeks from it.</p>
+  {/if}
+</div>
+
+<h2 class="bar">Prices</h2>
+<div class="panel pad">
+  <label class="country">
+    <span class="label">Currency</span>
+    <select class="field" bind:value={plan.settings.currency}>
+      {#each CURRENCIES as c (c.code)}
+        <option value={c.code}>{c.name} ({c.symbol})</option>
+      {/each}
+    </select>
+  </label>
+  <p class="note">Add what a pack costs to each food on the Foods tab, and the app adds up what meals, days and the shopping list cost.</p>
 </div>
 
 <h2 class="bar">About</h2>
@@ -168,7 +247,7 @@
       This browser won't let the app save, so changes are lost when you close it. Save a backup file before you go.
     {:else}
       Your plan is stored on this device and never uploaded. The only things sent anywhere are packaged-food searches and barcode
-      lookups, which go to Open Food Facts.
+      lookups, which go to Open Food Facts. Searches pass through the app’s own relay on Cloudflare, which keeps no record of them.
     {/if}
   </p>
   <p class="note">
@@ -186,6 +265,41 @@
   .country {
     display: block;
     max-width: 22rem;
+  }
+  .days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0 0 0.9rem;
+  }
+  .day-chip {
+    min-width: 3rem;
+    min-height: 2.4rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    background: var(--surface);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .day-chip.on {
+    background: var(--bar);
+    border-color: var(--bar);
+    color: var(--bar-ink);
+  }
+  .keep {
+    display: block;
+  }
+  .keep-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .keep-row :global(.field) {
+    width: 4.5rem;
+  }
+  .saved-h {
+    display: block;
+    margin-top: 1rem;
   }
   .about a {
     color: inherit;

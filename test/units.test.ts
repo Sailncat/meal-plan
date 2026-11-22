@@ -123,7 +123,7 @@ describe('metric and imperial', () => {
 describe('loading plans with units', () => {
   it('gives older plans default settings and no measures', () => {
     const p = normalize({ app: 'meal-plan', foods: [{ id: 'a', name: 'Rice' }] });
-    expect(p.settings).toEqual({ system: 'metric', energy: 'kcal', country: 'en:poland' });
+    expect(p.settings).toEqual({ system: 'metric', energy: 'kcal', country: 'en:poland', weekStart: 1, prepDays: [], fridgeDays: 3, currency: 'PLN' });
     expect(p.foods[0].measures).toEqual([]);
     expect(p.foods[0].countBy).toBeNull();
   });
@@ -132,18 +132,20 @@ describe('loading plans with units', () => {
     const raw: any = emptyPlan();
     raw.foods = [{ ...egg, countBy: 'gone' }];
     raw.recipes = [{ id: 'r', name: 'Eggs', servings: 1, lines: [{ food: 'egg', amount: 2, measure: 'gone' }] }];
-    raw.week[0].meals.breakfast = [{ id: 'e', ref: 'f:egg', amount: 2, measure: 'm-egg' }];
+    raw.days = { '2026-11-16': { meals: { breakfast: [{ id: 'e', ref: 'f:egg', amount: 2, measure: 'm-egg' }] }, supps: [] } };
     const p = normalize(JSON.parse(JSON.stringify(raw)));
     expect(p.foods[0].countBy).toBeNull();
     expect(p.recipes[0].lines[0].measure).toBeNull();
-    expect(p.week[0].meals.breakfast[0].measure).toBe('m-egg');
-    expect(dayNut(p, p.week[0], 'kcal')).toBeCloseTo(172, 6);
+    expect(p.days['2026-11-16'].meals.breakfast[0].measure).toBe('m-egg');
+    expect(dayNut(p, p.days['2026-11-16'], 'kcal')).toBeCloseTo(172, 6);
   });
 
   it('keeps settings through a save and reload', () => {
     const p = emptyPlan();
-    p.settings = { system: 'imperial', energy: 'kJ', country: 'en:ireland' };
-    expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual({ system: 'imperial', energy: 'kJ', country: 'en:ireland' });
+    p.settings = { system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, prepDays: [3, 0], fridgeDays: 4, currency: 'EUR' };
+    expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual({ system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, prepDays: [0, 3], fridgeDays: 4, currency: 'EUR' });
+    const bad = toPlan({ ...JSON.parse(JSON.stringify(p)), settings: { weekStart: 5, prepDays: [9, 'x', 2], fridgeDays: 40, currency: 'XYZ' } }).settings;
+    expect(bad).toMatchObject({ weekStart: 1, prepDays: [2], fridgeDays: 3, currency: 'PLN' });
   });
 });
 
@@ -167,10 +169,9 @@ describe('supplement-only totals', async () => {
     const p = emptyPlan();
     p.foods.push(milk, tablet);
     p.recipes.push({ id: 'r', name: 'Drink', servings: 2, notes: '', lines: [{ food: 'd3', amount: 2, measure: null }, { food: 'milk', amount: 200, measure: null }] });
-    p.week[0].supps = ['d3'];
-    p.week[0].meals.breakfast = [{ id: 'e', ref: 'r:r', amount: 1, measure: null }];
-    const supps = dayNutWhere(p, p.week[0], 'vitD', (f) => f.supplement);
+    const day = { meals: { breakfast: [{ id: 'e', ref: 'r:r', amount: 1, measure: null }] }, supps: ['d3'], suppsTaken: [] };
+    const supps = dayNutWhere(p, day, 'vitD', (f) => f.supplement);
     expect(supps).toBeCloseTo(50 + 50, 6); // ticked tablet + half of the recipe's 2 tablets
-    expect(dayNut(p, p.week[0], 'vitD')).toBeCloseTo(100, 6);
+    expect(dayNut(p, day, 'vitD')).toBeCloseTo(100, 6);
   });
 });

@@ -42,36 +42,50 @@ export function entryNut(plan: Plan, e: Entry, key: string): number {
   return foodNut(t.food, baseAmount(t.food, e.amount, e.measure), key);
 }
 
-export const entriesNut = (plan: Plan, entries: Entry[] | undefined, key: string) =>
-  (entries ?? []).reduce((t, e) => t + entryNut(plan, e, key), 0);
+/**
+ * Which entries count. "plan": everything planned, including meals later swapped for something else (the plan
+ * was the plan). "eaten": what was ticked off, plus what meals were swapped for.
+ */
+export type Count = 'plan' | 'eaten';
+export const counts = (e: Entry, mode: Count) => (mode === 'plan' ? !e.extra : !!e.eaten);
 
-export const slotNut = (plan: Plan, day: Day, slotId: string, key: string) => entriesNut(plan, day.meals[slotId], key);
+export const entriesNut = (plan: Plan, entries: Entry[] | undefined, key: string, mode: Count = 'plan') =>
+  (entries ?? []).reduce((t, e) => (counts(e, mode) ? t + entryNut(plan, e, key) : t), 0);
 
-/** Each ticked supplement counts one label serving (its `per` amount). */
-export function suppsNut(plan: Plan, day: Day, key: string): number {
-  return day.supps.reduce((t, id) => {
+export const slotNut = (plan: Plan, day: Day, slotId: string, key: string, mode: Count = 'plan') => entriesNut(plan, day.meals[slotId], key, mode);
+
+/** Each supplement counts one label serving (its `per` amount): planned ones for the plan, ticked ones for eaten. */
+export function suppsNut(plan: Plan, day: Day, key: string, mode: Count = 'plan'): number {
+  return (mode === 'plan' ? day.supps : day.suppsTaken).reduce((t, id) => {
     const f = foodById(plan, id);
     return f ? t + foodNut(f, f.per, key) : t;
   }, 0);
 }
 
-/** A day's total; only meals that still exist in the plan count. */
-export function dayNut(plan: Plan, day: Day, key: string): number {
-  let t = suppsNut(plan, day, key);
-  for (const s of plan.slots) t += slotNut(plan, day, s.id, key);
+/** A day's total; only meals that still exist in the plan count. A day that isn't stored is empty. */
+export function dayNut(plan: Plan, day: Day | undefined, key: string, mode: Count = 'plan'): number {
+  if (!day) return 0;
+  let t = suppsNut(plan, day, key, mode);
+  for (const s of plan.slots) t += slotNut(plan, day, s.id, key, mode);
   return t;
 }
 
-export const weekNut = (plan: Plan, key: string) => plan.week.reduce((t, d) => t + dayNut(plan, d, key), 0);
+export const weekNut = (plan: Plan, dates: string[], key: string) => dates.reduce((t, d) => t + dayNut(plan, plan.days[d], key), 0);
 
-/** Every food that this week's plan uses, through recipes, foods and supplements. */
-export function weekFoodIds(plan: Plan): Set<string> {
+/** Has anything been ticked off as eaten that day? */
+export const anyEaten = (day: Day | undefined) => !!day && (day.suppsTaken.length > 0 || Object.values(day.meals).some((es) => es.some((e) => e.eaten)));
+
+/** Every food that these days' plan uses, through recipes, foods and supplements. */
+export function weekFoodIds(plan: Plan, dates: string[]): Set<string> {
   const ids = new Set<string>();
   const addRecipe = (r: Recipe | undefined) => r?.lines.forEach((l) => l.food && ids.add(l.food));
-  for (const d of plan.week) {
+  for (const date of dates) {
+    const d = plan.days[date];
+    if (!d) continue;
     d.supps.forEach((id) => ids.add(id));
     for (const s of plan.slots) {
       for (const e of d.meals[s.id] ?? []) {
+        if (e.extra) continue;
         const t = entryTarget(plan, e);
         if (t?.kind === 'recipe') addRecipe(t.recipe);
         else if (t?.kind === 'food') ids.add(t.food.id);
@@ -81,22 +95,37 @@ export function weekFoodIds(plan: Plan): Set<string> {
   return ids;
 }
 
+/** On how many days an entry matches. */
+function daysWith(plan: Plan, match: (d: Day) => boolean) {
+  return Object.values(plan.days).filter(match).length;
+}
+
 /** Where a food is used, for the Foods screen. */
 export function foodUsedIn(plan: Plan, foodId: string): string[] {
   const where = plan.recipes.filter((r) => r.lines.some((l) => l.food === foodId)).map((r) => r.name || 'Unnamed recipe');
   const ref = 'f:' + foodId;
-  if (plan.week.some((d) => Object.values(d.meals).some((es) => es.some((e) => e.ref === ref)))) where.push('This week’s meals');
-  if (plan.week.some((d) => d.supps.includes(foodId))) where.push('This week’s supplements');
+  const meals = daysWith(plan, (d) => Object.values(d.meals).some((es) => es.some((e) => e.ref === ref)));
+  if (meals) where.push(`Meals on ${meals} day${meals === 1 ? '' : 's'}`);
+  const supps = daysWith(plan, (d) => d.supps.includes(foodId));
+  if (supps) where.push(`Supplements on ${supps} day${supps === 1 ? '' : 's'}`);
+  if (plan.templates.some((t) => t.days.some((d) => d.supps.includes(foodId) || Object.values(d.meals).some((es) => es.some((e) => e.ref === ref))))) {
+    where.push('Saved weeks');
+  }
   return where;
 }
 
-/** How many entries in the week point at a recipe. */
+/** How many meals on any day (and in saved weeks) point at a recipe. */
 export function recipeUseCount(plan: Plan, recipeId: string): number {
   const ref = 'r:' + recipeId;
   let n = 0;
-  for (const d of plan.week) for (const es of Object.values(d.meals)) n += es.filter((e) => e.ref === ref).length;
+  for (const d of [...Object.values(plan.days), ...plan.templates.flatMap((t) => t.days)]) {
+    for (const es of Object.values(d.meals)) n += es.filter((e) => e.ref === ref).length;
+  }
   return n;
 }
+
+/** Every day, stored and saved-week, for removing something everywhere. */
+export const allDays = (plan: Plan): Day[] => [...Object.values(plan.days), ...plan.templates.flatMap((t) => t.days)];
 
 export type Status = 'ok' | 'under' | 'over';
 export function bandStatus(value: number, low: number, high: number): Status {
@@ -106,7 +135,8 @@ export function bandStatus(value: number, low: number, high: number): Status {
 }
 
 /** A day's total counting only foods that match `keep` (for upper limits that only cover supplements). */
-export function dayNutWhere(plan: Plan, day: Day, key: string, keep: (f: Food) => boolean): number {
+export function dayNutWhere(plan: Plan, day: Day | undefined, key: string, keep: (f: Food) => boolean): number {
+  if (!day) return 0;
   let t = 0;
   for (const id of day.supps) {
     const f = foodById(plan, id);
@@ -114,6 +144,7 @@ export function dayNutWhere(plan: Plan, day: Day, key: string, keep: (f: Food) =
   }
   for (const s of plan.slots) {
     for (const e of day.meals[s.id] ?? []) {
+      if (e.extra) continue;
       const target = entryTarget(plan, e);
       if (target?.kind === 'food') {
         if (keep(target.food)) t += entryNut(plan, e, key);

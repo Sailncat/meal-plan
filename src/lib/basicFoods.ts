@@ -3,6 +3,7 @@
 import type { Nutrients } from './types';
 import { fold } from './num';
 import { portionName, type FoodDraft } from './foods';
+import { aisleFromUsda } from './aisles';
 
 type Row = [id: number, name: string, category: string, values: (number | null)[], portions: [string, number][]];
 interface BasicFile {
@@ -199,5 +200,7 @@ export function basicDraft(f: BasicFood): FoodDraft {
     source: { db: 'usda', id: String(f.id) },
     url: `https://fdc.nal.usda.gov/food-details/${f.id}/nutrients`,
     quantity: '',
+    aisle: aisleFromUsda(f.category, f.name),
+    pack: null,
   };
 }

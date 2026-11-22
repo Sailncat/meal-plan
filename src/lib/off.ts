@@ -4,6 +4,7 @@
 
 import type { Nutrients } from './types';
 import type { FoodDraft } from './foods';
+import { aisleFromOff } from './aisles';
 
 const BASE = 'https://world.openfoodfacts.org';
 const APP = 'app_name=MealPlan&app_version=0.4';
@@ -18,6 +19,7 @@ const FIELDS = [
   'serving_size',
   'serving_quantity',
   'nutriments',
+  'categories_tags',
 ].join(',');
 
 /** Countries for packaged search, with the language their product names are mostly in (searched alongside English). */
@@ -64,6 +66,7 @@ export interface OffProduct {
   serving_size?: string;
   serving_quantity?: number | string;
   nutriments?: Record<string, number | string | undefined>;
+  categories_tags?: string[];
 }
 
 export class OffError extends Error {
@@ -313,5 +316,7 @@ export function offDraft(p: OffProduct): FoodDraft {
     source: { db: 'off', id: p.code },
     url: `https://world.openfoodfacts.org/product/${p.code}`,
     quantity: (p.quantity ?? '').trim(),
+    aisle: aisleFromOff(p.categories_tags),
+    pack: pack && pack <= 20_000 ? { size: sig(pack), price: null } : null,
   };
 }

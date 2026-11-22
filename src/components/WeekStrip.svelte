@@ -1,34 +1,38 @@
 <script lang="ts">
-  import { DAYS, DAYS_SHORT } from '../lib/types';
   import { fmt0 } from '../lib/num';
   import { bandStatus } from '../lib/calc';
   import { store } from '../lib/store.svelte';
   import { E, EU } from '../lib/display';
   import { targetsInUse } from '../lib/targets';
+  import { dayShort, dayTitle } from '../lib/dates';
 
   interface Props {
-    selected: number;
-    today: number;
+    /** The week's seven dates. */
+    dates: string[];
+    selected: string;
+    today: string;
     kcal: number[];
     protein: number[];
-    onselect: (i: number) => void;
+    onselect: (date: string) => void;
   }
-  let { selected, today, kcal, protein, onselect }: Props = $props();
+  let { dates, selected, today, kcal, protein, onselect }: Props = $props();
   const t = $derived(targetsInUse(store.plan!).targets);
 </script>
 
 <div class="strip" role="group" aria-label="Days of the week">
-  {#each DAYS_SHORT as d, i (d)}
+  {#each dates as date, i (date)}
     {@const ks = bandStatus(kcal[i], t.kcal.low, t.kcal.high)}
     {@const ps = protein[i] < t.protein.low ? 'under' : ''}
     <button
       class="day"
-      class:sel={i === selected}
-      aria-pressed={i === selected}
-      aria-label="{DAYS[i]}: {fmt0(E(kcal[i]))} {EU()}, {fmt0(protein[i])} g protein{i === today ? ', today' : ''}"
-      onclick={() => onselect(i)}
+      class:sel={date === selected}
+      class:past={date < today}
+      aria-pressed={date === selected}
+      aria-label="{dayTitle(date)}: {fmt0(E(kcal[i]))} {EU()}, {fmt0(protein[i])} g protein{date === today ? ', today' : ''}"
+      onclick={() => onselect(date)}
     >
-      <span class="d">{d}{#if i === today}<span class="today" aria-hidden="true"></span>{/if}</span>
+      <span class="d">{dayShort(date)}{#if date === today}<span class="today" aria-hidden="true"></span>{/if}</span>
+      <span class="n tabular">{Number(date.slice(8))}</span>
       <span class="k tabular {kcal[i] ? ks : 'empty'}">{kcal[i] ? fmt0(E(kcal[i])) : '–'}</span>
       <span class="p tabular {ps}">{kcal[i] ? fmt0(protein[i]) + ' g' : ''}</span>
     </button>
@@ -79,6 +83,14 @@
     border-radius: 50%;
     background: var(--over);
   }
+  .n {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: -0.15rem;
+  }
+  .past:not(.sel) .d {
+    color: var(--muted);
+  }
   .k {
     font-weight: 700;
     font-size: 0.82rem;
@@ -102,7 +114,8 @@
     color: var(--muted);
   }
   .sel .k,
-  .sel .p {
+  .sel .p,
+  .sel .n {
     color: inherit;
   }
   .sel .today {

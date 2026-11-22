@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Recipe } from '../lib/types';
-  import { foodById, lineNut, perServing, recipeTotal, recipeUseCount, servingsOf } from '../lib/calc';
+  import { allDays, foodById, lineNut, perServing, recipeTotal, recipeUseCount, servingsOf } from '../lib/calc';
   import { fmt0, fmt1 } from '../lib/num';
   import { store, undoable } from '../lib/store.svelte';
   import { E, EU } from '../lib/display';
@@ -47,7 +47,7 @@
     undoable(`Deleted ${name}${uses ? ` and took it out of ${uses} meal${uses === 1 ? '' : 's'}` : ''}`, (p) => {
       p.recipes = p.recipes.filter((r) => r.id !== recipe.id);
       const ref = 'r:' + recipe.id;
-      for (const d of p.week) for (const k of Object.keys(d.meals)) d.meals[k] = d.meals[k].filter((e) => e.ref !== ref);
+      for (const d of allDays(p)) for (const k of Object.keys(d.meals)) d.meals[k] = d.meals[k].filter((e) => e.ref !== ref);
     });
   }
 </script>

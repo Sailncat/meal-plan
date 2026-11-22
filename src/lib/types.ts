@@ -36,6 +36,19 @@ export interface Food {
   countBy: string | null;
   /** Set when it was picked from a database; used for credit and for finding missing values. */
   source?: FoodSource;
+  /** Shop aisle for the shopping list; missing means "other". */
+  aisle?: AisleId;
+  /** The pack it's bought in, for "packs to buy" and costs. */
+  pack?: Pack;
+}
+
+export type AisleId = 'fruitveg' | 'meat' | 'dairy' | 'bakery' | 'grains' | 'tins' | 'frozen' | 'ready' | 'snacks' | 'drinks' | 'pantry' | 'other';
+
+export interface Pack {
+  /** How much one pack holds, in the food's base unit (500 g, 1000 ml, 10 eggs). */
+  size: number;
+  /** What one pack costs, in the plan's currency; null when not known. */
+  price: number | null;
 }
 
 /**
@@ -73,13 +86,31 @@ export interface Entry {
   amount: number | null;
   /** For foods: a measure id, or null for the base unit. Always null for recipes (amount = servings). */
   measure: string | null;
+  /** Ticked off as eaten. */
+  eaten?: boolean;
+  /** Planned but swapped for something else (the swap is an `extra` entry with `swapOf` = this id). */
+  skipped?: boolean;
+  /** Eaten but never planned, like what a meal was swapped for. Counts as eaten, not as planned. */
+  extra?: boolean;
+  /** For an extra entry: the planned entry it replaced. */
+  swapOf?: string;
 }
 
 export interface Day {
   /** Entries per slot id. */
   meals: Record<string, Entry[]>;
-  /** Ids of supplement foods taken that day; each counts one label serving. */
+  /** Ids of supplement foods planned that day; each counts one label serving. */
   supps: string[];
+  /** Ids of the planned supplements ticked off as taken. */
+  suppsTaken: string[];
+}
+
+/** A saved week to start new weeks from. */
+export interface Template {
+  id: string;
+  name: string;
+  /** Monday to Sunday. */
+  days: Day[];
 }
 
 export interface Range {
@@ -139,17 +170,28 @@ export interface Settings {
   energy: 'kcal' | 'kJ';
   /** Open Food Facts country tag that packaged-food search is limited to, like "en:poland"; "" searches every country. */
   country: string;
+  /** First day of the week: 1 = Monday, 0 = Sunday. */
+  weekStart: 0 | 1;
+  /** Weekdays batches are cooked on (0 = Sunday … 6 = Saturday). Empty: each batch is cooked the day it's first eaten. */
+  prepDays: number[];
+  /** How many days after cooking leftovers can still be eaten. */
+  fridgeDays: number;
+  /** ISO currency code for prices, like "PLN". */
+  currency: string;
 }
 
 export interface Plan {
   app: 'meal-plan';
-  version: 2;
+  version: 3;
   settings: Settings;
   foods: Food[];
   recipes: Recipe[];
   slots: Slot[];
-  /** Monday to Sunday. */
-  week: Day[];
+  /** Planned days by date (YYYY-MM-DD). Days with nothing in them aren't stored. */
+  days: Record<string, Day>;
+  templates: Template[];
+  /** Shopping list items ticked off, by food id. */
+  shopping: { ticked: string[] };
   targets: Targets;
   profile: Profile;
   /** Oldest first. */
@@ -161,5 +203,6 @@ export interface Plan {
   meta: Meta;
 }
 
-export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
-export const DAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+/** Weekday names by JavaScript's numbering: 0 = Sunday … 6 = Saturday. */
+export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+export const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;

@@ -313,3 +313,20 @@ describe('barcodes', async () => {
     expect(looksLikeBarcode('skyr 2')).toBe(false);
   });
 });
+
+describe('aisles and packs from the databases', () => {
+  it('guesses the aisle and keeps the pack size from Open Food Facts', () => {
+    const d = offDraft({ ...skyr, categories_tags: ['en:dairies', 'en:fermented-milk-products', 'en:yogurts'] });
+    expect(d.aisle).toBe('dairy');
+    expect(d.pack).toEqual({ size: 150, price: null });
+    const food = foodFromDraft(d, 'Skyr');
+    expect(food.aisle).toBe('dairy');
+    expect(food.pack).toEqual({ size: 150, price: null });
+  });
+  it('guesses the aisle from a USDA food group', () => {
+    const list = parseBasic(file as never);
+    expect(basicDraft(list.find((f) => f.id === 4)!).aisle).toBe('fruitveg');
+    expect(basicDraft(list.find((f) => f.id === 6)!).aisle).toBe('bakery');
+    expect('aisle' in foodFromDraft(basicDraft(list.find((f) => f.id === 1)!), 'Eggs')).toBe(true);
+  });
+});

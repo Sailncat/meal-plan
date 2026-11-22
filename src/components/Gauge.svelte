@@ -10,8 +10,10 @@
     high: number;
     /** Going over the top of the band is fine (protein), so it isn't shown as a warning. */
     overOk?: boolean;
+    /** How much of it was ticked off as eaten; shown as a second, solid bar inside the planned one. */
+    eaten?: number | null;
   }
-  let { name, value, unit, low, high, overOk = false }: Props = $props();
+  let { name, value, unit, low, high, overOk = false, eaten = null }: Props = $props();
 
   const max = $derived(Math.max(high * 1.3, value * 1.1, 1));
   const pct = (x: number) => Math.max(0, Math.min(100, (x / max) * 100));
@@ -35,9 +37,14 @@
   </div>
   <div class="track" role="img" aria-label="{name}: {fmt0(value)} {unit}, target {fmt0(low)} to {fmt0(high)}">
     <div class="band" style:left="{pct(low)}%" style:width="{pct(high) - pct(low)}%"></div>
-    <div class="fill {status}" style:width="{pct(value)}%"></div>
+    <div class="fill {status}" class:dim={eaten != null} style:width="{pct(value)}%"></div>
+    {#if eaten != null}<div class="eaten" style:width="{pct(eaten)}%"></div>{/if}
   </div>
-  <div class="foot"><span class={status}>{note}</span> <span class="muted">· target {fmt0(low)}–{fmt0(high)}</span></div>
+  <div class="foot">
+    {#if eaten != null}<span class="eaten-text tabular">{fmt0(eaten)} {unit} eaten</span> <span class="muted">·</span>{/if}
+    <span class={status}>{note}</span>
+    <span class="muted">· target {fmt0(low)}–{fmt0(high)}</span>
+  </div>
 </div>
 
 <style>
@@ -87,6 +94,21 @@
     bottom: 0.18rem;
     border-radius: 0.3rem;
     transition: width 0.35s ease;
+  }
+  .fill.dim {
+    opacity: 0.45;
+  }
+  .eaten {
+    position: absolute;
+    left: 0;
+    top: 0.3rem;
+    bottom: 0.3rem;
+    border-radius: 0.2rem;
+    background: var(--ink);
+    transition: width 0.35s ease;
+  }
+  .eaten-text {
+    font-weight: 600;
   }
   .fill.ok {
     background: var(--ok);

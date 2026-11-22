@@ -1,11 +1,16 @@
-// Turns anything that looks like a plan into a clean, current Plan:
-// the old Claude artifact's format (v1), this app's own backups (v2), or a fresh start.
+// Turns anything that looks like a plan into a clean, current Plan: the old Claude artifact's format (v1), this
+// app's backups from before real dates (v2, one undated week), current backups (v3), or a fresh start.
 
-import type { Activity, Aim, Day, Entry, Food, MacroKey, Plan, Profile, Range, Recipe, Slot, Stage, Targets, WeightEntry } from './types';
-import { DAYS } from './types';
+import type { Activity, Aim, Day, Entry, Food, MacroKey, Pack, Plan, Profile, Range, Recipe, Slot, Stage, Targets, Template, WeightEntry } from './types';
 import { num, uid } from './num';
 import { DEFAULT_SETTINGS, measureOf } from './units';
 import { RECENT_MAX } from './foods';
+import { isAisle } from './aisles';
+import { isCurrency } from './money';
+import { isDate, mondayIndex, today, weekDates } from './dates';
+
+/** The old undated week ran Monday to Sunday. */
+const OLD_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const noCustom = (): Record<MacroKey, boolean> => ({ kcal: false, protein: false, carbs: false, fat: false });
 
@@ -68,18 +73,23 @@ export const DEFAULT_SLOTS: Slot[] = [
   { id: 'snacks', name: 'Snacks' },
 ];
 
-const emptyDay = (slots: Slot[]): Day => ({ meals: Object.fromEntries(slots.map((s) => [s.id, []])), supps: [] });
+export const emptyDay = (slots: Slot[]): Day => ({ meals: Object.fromEntries(slots.map((s) => [s.id, []])), supps: [], suppsTaken: [] });
+
+/** Nothing planned and nothing eaten. */
+export const isEmptyDay = (d: Day | undefined) => !d || (!d.supps.length && Object.values(d.meals).every((es) => !es.length));
 
 export function emptyPlan(): Plan {
   const slots = DEFAULT_SLOTS.map((s) => ({ ...s }));
   return {
     app: 'meal-plan',
-    version: 2,
-    settings: { ...DEFAULT_SETTINGS },
+    version: 3,
+    settings: { ...DEFAULT_SETTINGS, prepDays: [] },
     foods: [],
     recipes: [],
     slots,
-    week: DAYS.map(() => emptyDay(slots)),
+    days: {},
+    templates: [],
+    shopping: { ticked: [] },
     targets: defaultTargets(),
     profile: defaultProfile(),
     weights: [],
@@ -95,16 +105,22 @@ const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === 'obj
 const str = (v: unknown, fallback = '') => (typeof v === 'string' ? v : fallback);
 const amountOf = (v: unknown): number | null => (v === '' || v == null ? null : Number.isFinite(parseFloat(String(v))) ? num(v) : null);
 
-/** Accepts parsed JSON from a backup file or storage and returns a clean Plan. Throws PlanFormatError if it isn't one. */
-export function toPlan(data: unknown): Plan {
+/**
+ * Accepts parsed JSON from a backup file or storage and returns a clean Plan. Throws PlanFormatError if it isn't one.
+ * `now` decides which dates an old undated week lands on: the current week.
+ */
+export function toPlan(data: unknown, now = new Date()): Plan {
   if (!isObj(data)) throw new PlanFormatError('This file doesn’t contain a meal plan.');
-  if (Array.isArray(data.ingredients) && Array.isArray(data.week)) return normalize(fromV1(data));
-  if (data.app === 'meal-plan' || (Array.isArray(data.foods) && Array.isArray(data.slots))) return normalize(data);
+  if (Array.isArray(data.ingredients) && Array.isArray(data.week)) return normalize(fromV1(data), now);
+  if (data.app === 'meal-plan' || (Array.isArray(data.foods) && Array.isArray(data.slots))) return normalize(data, now);
   throw new PlanFormatError('This file doesn’t contain a meal plan.');
 }
 
+const packOf = (v: unknown): Pack | null =>
+  isObj(v) && num(v.size) > 0 ? { size: num(v.size), price: v.price != null && v.price !== '' && num(v.price) >= 0 && Number.isFinite(parseFloat(String(v.price))) ? num(v.price) : null } : null;
+
 /** Fills gaps and drops broken bits so the app can always render what it loaded. */
-export function normalize(p: Record<string, any>): Plan {
+export function normalize(p: Record<string, any>, now = new Date()): Plan {
   const foods: Food[] = (Array.isArray(p.foods) ? p.foods : []).filter(isObj).map((f: any) => ({
     id: str(f.id) || uid(),
     name: str(f.name),
@@ -121,6 +137,8 @@ export function normalize(p: Record<string, any>): Plan {
       .filter((m: { size: number }) => m.size > 0),
     countBy: typeof f.countBy === 'string' ? f.countBy : null,
     ...(isObj(f.source) && (f.source.db === 'off' || f.source.db === 'usda') && str(f.source.id) ? { source: { db: f.source.db, id: str(f.source.id) } } : {}),
+    ...(isAisle(f.aisle) ? { aisle: f.aisle } : {}),
+    ...(packOf(f.pack) ? { pack: packOf(f.pack)! } : {}),
   }));
   const foodMap = new Map(foods.map((f) => [f.id, f]));
   // A unit that no longer exists falls back to the base unit.
@@ -141,24 +159,64 @@ export function normalize(p: Record<string, any>): Plan {
   const foodIds = new Set(foods.map((f) => f.id));
   const recipeIds = new Set(recipes.map((r) => r.id));
   const exists = (ref: string) => (ref.startsWith('r:') ? recipeIds : foodIds).has(ref.slice(2));
-  const rawWeek = Array.isArray(p.week) ? p.week : [];
-  const week: Day[] = DAYS.map((_, k) => {
-    const d = isObj(rawWeek[k]) ? rawWeek[k] : {};
+  const dayOf = (raw: unknown): Day => {
+    const d = isObj(raw) ? raw : {};
     const rawMeals = isObj(d.meals) ? d.meals : {};
     const meals: Record<string, Entry[]> = {};
     for (const s of slots) {
       meals[s.id] = (Array.isArray(rawMeals[s.id]) ? rawMeals[s.id] : [])
         .filter((e: any) => isObj(e) && typeof e.ref === 'string' && /^[rf]:/.test(e.ref) && exists(e.ref))
-        .map((e: any) => ({
-          id: str(e.id) || uid(),
-          ref: e.ref,
-          amount: amountOf(e.amount),
-          measure: e.ref.startsWith('f:') ? measureFor(e.ref.slice(2), e.measure) : null,
-        }));
+        .map((e: any) => {
+          const entry: Entry = {
+            id: str(e.id) || uid(),
+            ref: e.ref,
+            amount: amountOf(e.amount),
+            measure: e.ref.startsWith('f:') ? measureFor(e.ref.slice(2), e.measure) : null,
+          };
+          if (e.extra) {
+            entry.extra = true;
+            entry.eaten = true;
+            if (typeof e.swapOf === 'string') entry.swapOf = e.swapOf;
+          } else {
+            if (e.eaten) entry.eaten = true;
+            if (e.skipped) entry.skipped = true;
+          }
+          return entry;
+        });
     }
+    // A planned meal only stays "swapped" while what it was swapped for is still there.
+    const swaps = new Set(Object.values(meals).flatMap((es) => es.filter((e) => e.swapOf).map((e) => e.swapOf)));
+    for (const es of Object.values(meals)) for (const e of es) if (e.skipped && !swaps.has(e.id)) delete e.skipped;
     const supps = Array.isArray(d.supps) ? [...new Set<string>(d.supps.filter((x: unknown) => typeof x === 'string' && foodIds.has(x)))] : [];
-    return { meals, supps };
-  });
+    const suppsTaken = Array.isArray(d.suppsTaken) ? [...new Set<string>(d.suppsTaken.filter((x: unknown) => typeof x === 'string' && supps.includes(x)))] : [];
+    return { meals, supps, suppsTaken };
+  };
+
+  const st = isObj(p.settings) ? p.settings : {};
+  const weekStart: 0 | 1 = st.weekStart === 0 ? 0 : 1;
+  const days: Record<string, Day> = {};
+  const templates: Template[] = [];
+  if (isObj(p.days)) {
+    for (const [date, raw] of Object.entries(p.days)) {
+      if (!isDate(date)) continue;
+      const d = dayOf(raw);
+      if (!isEmptyDay(d)) days[date] = d;
+    }
+  } else if (Array.isArray(p.week)) {
+    // Before real dates the plan was one undated Monday–Sunday week. It becomes this week, and is kept as a
+    // template too, so next week can start from it.
+    const week = OLD_DAYS.map((_, k) => dayOf(p.week[k]));
+    for (const date of weekDates(today(now), weekStart)) {
+      const d = structuredClone(week[mondayIndex(date)]);
+      if (!isEmptyDay(d)) days[date] = d;
+    }
+    if (week.some((d) => !isEmptyDay(d))) templates.push({ id: uid(), name: 'My usual week', days: week });
+  }
+  for (const t of Array.isArray(p.templates) ? p.templates : []) {
+    if (!isObj(t) || !Array.isArray(t.days)) continue;
+    templates.push({ id: str(t.id) || uid(), name: str(t.name) || 'Saved week', days: OLD_DAYS.map((_, k) => dayOf(t.days[k])) });
+  }
+
   const targets = targetsOf(isObj(p.targets) ? p.targets : {});
   const pr = isObj(p.profile) ? p.profile : {};
   const dp = defaultProfile();
@@ -179,20 +237,26 @@ export function normalize(p: Record<string, any>): Plan {
   }
   const weights: WeightEntry[] = [...byDate].sort(([a], [b]) => a.localeCompare(b)).map(([date, kg]) => ({ date, kg }));
   const m = isObj(p.meta) ? p.meta : {};
-  const st = isObj(p.settings) ? p.settings : {};
+  const fridge = Math.round(num(st.fridgeDays));
   const refs = (v: unknown) => [...new Set((Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string' && /^[rf]:/.test(x) && exists(x)))];
   return {
     app: 'meal-plan',
-    version: 2,
+    version: 3,
     settings: {
       system: st.system === 'imperial' ? 'imperial' : 'metric',
       energy: st.energy === 'kJ' ? 'kJ' : 'kcal',
       country: typeof st.country === 'string' && /^(|[a-z]{2}:[a-z-]+)$/.test(st.country) ? st.country : DEFAULT_SETTINGS.country,
+      weekStart,
+      prepDays: [...new Set<number>((Array.isArray(st.prepDays) ? st.prepDays : []).filter((d: unknown) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))].sort(),
+      fridgeDays: fridge >= 1 && fridge <= 14 ? fridge : DEFAULT_SETTINGS.fridgeDays,
+      currency: isCurrency(st.currency) ? st.currency : DEFAULT_SETTINGS.currency,
     },
     foods,
     recipes,
     slots,
-    week,
+    days,
+    templates,
+    shopping: { ticked: [...new Set<string>((isObj(p.shopping) && Array.isArray(p.shopping.ticked) ? p.shopping.ticked : []).filter((x: unknown) => typeof x === 'string' && foodIds.has(x)))] },
     targets,
     profile,
     weights,
@@ -223,7 +287,7 @@ export function fromV1(p: Record<string, any>): Record<string, any> {
     notes: str(r.notes),
   }));
 
-  const week = DAYS.map((d, k) => (p.week as any[]).find((x) => x && x.day === d) || p.week[k] || {});
+  const week = OLD_DAYS.map((d, k) => (p.week as any[]).find((x) => x && x.day === d) || p.week[k] || {});
   const shakesOf = (w: any) => {
     // older plans stored a shake flag on each meal instead of a count
     const legacy = (w.breakfast?.shake ? 1 : 0) + (w.dinner?.shake ? 1 : 0);

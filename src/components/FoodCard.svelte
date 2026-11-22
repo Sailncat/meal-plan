@@ -1,7 +1,10 @@
 <script lang="ts">
   import type { Food } from '../lib/types';
-  import { foodNut, foodUsedIn } from '../lib/calc';
+  import { allDays, foodNut, foodUsedIn } from '../lib/calc';
   import { ALL_NUTRIENTS, NUTRIENTS } from '../lib/nutrients';
+  import { AISLES } from '../lib/aisles';
+  import { currencySymbol } from '../lib/money';
+  import type { AisleId } from '../lib/types';
   import { fmt0, fmt1, uid } from '../lib/num';
   import { baseAmount, measureOf, measuresOf, plural } from '../lib/units';
   import { E, EU, amountOf, fromE, system } from '../lib/display';
@@ -19,6 +22,17 @@
 
   const plan = $derived(store.plan!);
   const used = $derived(open ? foodUsedIn(plan, food.id) : []);
+  /** Recipes keep a line for a deleted food, so those have to be changed first; meals just lose it. */
+  const inRecipes = $derived(open ? plan.recipes.filter((r) => r.lines.some((l) => l.food === food.id)) : []);
+
+  function setPack(size: number | null, price: number | null) {
+    if (size == null || !(size > 0)) delete food.pack;
+    else food.pack = { size, price: price != null && price >= 0 ? price : null };
+  }
+  function setAisle(a: AisleId) {
+    if (a === 'other') delete food.aisle;
+    else food.aisle = a;
+  }
   const MAIN = ['carbs', 'fat'];
   const more = NUTRIENTS.filter((n) => !MAIN.includes(n.k));
   const filled = $derived(more.filter((n) => food.nut[n.k] != null).length);
@@ -44,7 +58,10 @@
     }
     undoable(`${food.name || 'This food'} is no longer a supplement`, (p) => {
       food.supplement = false;
-      for (const d of p.week) d.supps = d.supps.filter((id) => id !== food.id);
+      for (const d of allDays(p)) {
+        d.supps = d.supps.filter((id) => id !== food.id);
+        d.suppsTaken = d.suppsTaken.filter((id) => id !== food.id);
+      }
     });
   }
 
@@ -65,7 +82,7 @@
         o.measure = null;
       };
       for (const r of p.recipes) for (const l of r.lines) if (l.food === food.id) back(l);
-      for (const d of p.week) for (const list of Object.values(d.meals)) for (const e of list) if (e.ref === 'f:' + food.id) back(e);
+      for (const d of allDays(p)) for (const list of Object.values(d.meals)) for (const e of list) if (e.ref === 'f:' + food.id) back(e);
       if (food.countBy === id) food.countBy = null;
       food.measures = food.measures.filter((x) => x.id !== id);
     });
@@ -91,6 +108,14 @@
   function remove() {
     undoable(`Deleted ${food.name || 'unnamed food'}`, (p) => {
       p.foods = p.foods.filter((f) => f.id !== food.id);
+      // Meals and supplements that used it go too; recipes keep the line, waiting for a new food.
+      const ref = 'f:' + food.id;
+      for (const d of allDays(p)) {
+        for (const k of Object.keys(d.meals)) d.meals[k] = d.meals[k].filter((e) => e.ref !== ref);
+        d.supps = d.supps.filter((id) => id !== food.id);
+        d.suppsTaken = d.suppsTaken.filter((id) => id !== food.id);
+      }
+      p.shopping.ticked = p.shopping.ticked.filter((id) => id !== food.id);
     });
   }
 </script>
@@ -176,6 +201,31 @@
         <span><b>Supplement</b><small>Ticked off each day on the Plan tab, instead of added to meals. Counts one label amount.</small></span>
       </label>
 
+      {#if !food.supplement}
+        <section class="shop" aria-label="Shopping">
+          <label>
+            <span class="label">Shop aisle</span>
+            <select class="field" value={food.aisle ?? 'other'} onchange={(e) => setAisle(e.currentTarget.value as AisleId)}>
+              {#each AISLES as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+            </select>
+          </label>
+          <label>
+            <span class="label">Pack size ({food.unit || 'g'})</span>
+            <NumInput value={food.pack?.size ?? null} label="Pack size in {food.unit}" placeholder="e.g. 500" onchange={(v) => setPack(v, food.pack?.price ?? null)} />
+          </label>
+          <label>
+            <span class="label">Pack price ({currencySymbol(plan.settings.currency)})</span>
+            <NumInput
+              value={food.pack?.price ?? null}
+              label="Pack price"
+              placeholder={food.pack ? 'e.g. 4.99' : 'pack size first'}
+              onchange={(v) => food.pack && setPack(food.pack.size, v)}
+            />
+          </label>
+        </section>
+        <p class="note hint">For the shopping list: which aisle it’s in, and the pack you buy, so the list can say “2 packs” and add up costs.</p>
+      {/if}
+
       {#if canFill}
         <div class="find">
           <button class="btn small" onclick={() => (finding = true)}>Find missing values</button>
@@ -204,10 +254,12 @@
 
       <div class="foot">
         <p class="used">{used.length ? `Used in: ${used.join(', ')}` : 'Not used anywhere yet'}</p>
-        <button class="btn small danger" disabled={used.length > 0} onclick={remove}>Delete food</button>
+        <button class="btn small danger" disabled={inRecipes.length > 0} onclick={remove}>Delete food</button>
       </div>
-      {#if used.length}
-        <p class="note">To delete it, take it out of those recipes and meals first.</p>
+      {#if inRecipes.length}
+        <p class="note">To delete it, take it out of {inRecipes.length === 1 ? 'that recipe' : 'those recipes'} first.</p>
+      {:else if used.length}
+        <p class="note">Deleting it takes it out of those meals too. You can undo it.</p>
       {/if}
     </div>
   {/if}
@@ -308,6 +360,12 @@
     display: block;
     color: var(--muted);
     font-size: 0.85rem;
+  }
+  .shop {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.6rem 0.75rem;
+    margin-top: 0.9rem;
   }
   .find {
     display: flex;

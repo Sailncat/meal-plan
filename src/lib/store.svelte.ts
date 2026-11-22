@@ -3,6 +3,7 @@
 import { get, set } from 'idb-keyval';
 import type { Plan } from './types';
 import { emptyPlan, toPlan } from './migrate';
+import { today } from './dates';
 
 const KEY = 'plan';
 const LS_KEY = 'meal-plan:plan';
@@ -14,6 +15,9 @@ export const store = $state({
   /** Where the plan is kept: IndexedDB, localStorage as a fallback, or nowhere (memory only). */
   storage: 'idb' as 'idb' | 'local' | 'memory',
 });
+
+/** What's on screen, shared by Plan, Prep, Shop and Nutrients: the chosen day, and with it the week. Not saved. */
+export const ui = $state({ date: today() });
 
 // ---------- reading and writing the device copy ----------
 
@@ -65,8 +69,11 @@ export async function load(): Promise<void> {
   const raw = await readRaw();
   if (raw) {
     try {
-      store.plan = toPlan(JSON.parse(raw));
-      lastSaved = JSON.stringify(store.plan);
+      const data = JSON.parse(raw);
+      store.plan = toPlan(data);
+      // A plan from an older version was just converted (an undated week landed on this week's dates), so save
+      // the converted copy now; converting again on a later day would put it on a different week.
+      lastSaved = data?.version === store.plan.version ? JSON.stringify(store.plan) : null;
     } catch {
       // Keep the unreadable copy aside instead of overwriting it.
       try {

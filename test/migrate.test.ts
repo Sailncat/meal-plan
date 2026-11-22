@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { toPlan, emptyPlan, normalize } from '../src/lib/migrate';
+import { toPlan, emptyPlan, emptyDay, normalize } from '../src/lib/migrate';
+import type { Plan } from '../src/lib/types';
 import { dayNut, weekNut, foodUsedIn, recipeUseCount } from '../src/lib/calc';
 import { backupReminder } from '../src/lib/backup';
 import { parseInput } from '../src/lib/num';
@@ -12,6 +13,11 @@ const v1 = JSON.parse(readFileSync(new URL('./fixtures/v1-sample.json', import.m
 // Optionally also check a real exported plan kept outside the repo.
 const realPath = process.env.MEAL_PLAN_REAL_FIXTURE;
 const real = realPath && existsSync(realPath) ? JSON.parse(readFileSync(realPath, 'utf8')) : null;
+
+// The old undated Monday–Sunday week lands on the week holding "now": 16–22 Nov 2026 for a Wednesday.
+const NOW = new Date(2026, 10, 18, 12);
+const DATES = ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22'];
+const W = (p: Plan) => DATES.map((d) => p.days[d] ?? emptyDay(p.slots));
 
 // ---- the old artifact's own maths, copied from its code, as the reference ----
 const n = (v: any) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : 0);
@@ -45,7 +51,7 @@ function oldDay(p: any, d: any, key: string): number {
 }
 
 describe('moving the old artifact plan across', () => {
-  const plan = toPlan(v1);
+  const plan = toPlan(v1, NOW);
 
   it('keeps every food and recipe, and turns the shake into a recipe', () => {
     expect(plan.foods).toHaveLength(v1.ingredients.length);
@@ -65,19 +71,19 @@ describe('moving the old artifact plan across', () => {
   });
 
   it('counts the old per-meal shake flags as shakes', () => {
-    expect(plan.week[2].meals.shakes).toHaveLength(1);
-    expect(plan.week[2].meals.shakes[0].amount).toBe(2);
+    expect(W(plan)[2].meals.shakes).toHaveLength(1);
+    expect(W(plan)[2].meals.shakes[0].amount).toBe(2);
   });
 
   it('drops links to deleted recipes and supplements', () => {
-    expect(plan.week[4].meals.dinner).toEqual([]);
-    expect(plan.week[3].supps).toEqual(['vitd']);
+    expect(W(plan)[4].meals.dinner).toEqual([]);
+    expect(W(plan)[3].supps).toEqual(['vitd']);
   });
 
   it('gives every day exactly the same totals as before, for every nutrient', () => {
     v1.week.forEach((d: any, k: number) => {
       for (const nd of ALL_NUTRIENTS) {
-        expect(dayNut(plan, plan.week[k], nd.k)).toBeCloseTo(oldDay(v1, d, nd.k), 6);
+        expect(dayNut(plan, W(plan)[k], nd.k)).toBeCloseTo(oldDay(v1, d, nd.k), 6);
       }
     });
   });
@@ -85,18 +91,29 @@ describe('moving the old artifact plan across', () => {
   it('works out a known day by hand', () => {
     // Monday: oatmeal 337.5 + 150 + 106.8 = 594.3; chicken with rice 440 + 88.4 + 525 = 1053.4;
     // 2 shakes (110 + 125) × 2 = 470; 200 g cottage cheese 194; vitamin D 0. Total 2,311.7 kcal
-    expect(dayNut(plan, plan.week[0], 'kcal')).toBeCloseTo(2311.7, 6);
-    expect(weekNut(plan, 'protein')).toBeGreaterThan(0);
+    expect(dayNut(plan, W(plan)[0], 'kcal')).toBeCloseTo(2311.7, 6);
+    expect(weekNut(plan, DATES, 'protein')).toBeGreaterThan(0);
   });
 
   it('survives a save and reload unchanged', () => {
-    const again = toPlan(JSON.parse(JSON.stringify(plan)));
-    expect(again).toEqual(plan);
+    const again = toPlan(JSON.parse(JSON.stringify(plan)), new Date(2027, 0, 1));
+    expect(again).toEqual(plan); // a v3 plan doesn't move, whatever the date
+  });
+
+  it('puts the old week on this week’s dates and keeps it as a template', () => {
+    expect(plan.version).toBe(3);
+    expect(Object.keys(plan.days).every((d) => DATES.includes(d))).toBe(true);
+    expect(plan.templates).toHaveLength(1);
+    expect(plan.templates[0].name).toBe('My usual week');
+    for (let k = 0; k < 7; k++) expect(dayNut(plan, plan.templates[0].days[k], 'kcal')).toBeCloseTo(dayNut(plan, W(plan)[k], 'kcal'), 6);
   });
 
   it('knows where foods and recipes are used', () => {
-    expect(foodUsedIn(plan, 'cottage')).toEqual(['Beef wraps', 'This week’s meals']);
-    expect(recipeUseCount(plan, 'oatmeal')).toBe(6);
+    expect(foodUsedIn(plan, 'cottage')[0]).toBe('Beef wraps');
+    expect(foodUsedIn(plan, 'cottage')[1]).toMatch(/^Meals on \d days?$/);
+    expect(foodUsedIn(plan, 'cottage')).toContain('Saved weeks');
+    // six days of oatmeal this week, and six more in the "My usual week" template made from it
+    expect(recipeUseCount(plan, 'oatmeal')).toBe(12);
   });
 });
 
@@ -109,20 +126,27 @@ describe('cleaning up damaged or partial plans', () => {
 
   it('fills in a plan with missing parts', () => {
     const p = normalize({ app: 'meal-plan', foods: [{ name: 'Rice' }] });
-    expect(p.week).toHaveLength(7);
+    expect(p.days).toEqual({});
+    expect(p.templates).toEqual([]);
+    expect(p.shopping).toEqual({ ticked: [] });
     expect(p.slots.length).toBeGreaterThan(0);
     expect(p.foods[0].per).toBe(100);
-    expect(p.week[0].meals[p.slots[0].id]).toEqual([]);
   });
 
   it('drops entries that point nowhere sensible', () => {
     const p = emptyPlan();
     const raw: any = JSON.parse(JSON.stringify(p));
     raw.recipes = [{ id: 'abc', name: 'Stew', servings: 2, lines: [] }];
-    raw.week[0].meals.breakfast = [{ ref: 'x:1', amount: 1 }, { ref: 'r:abc', amount: '2' }, { ref: 'r:gone', amount: 1 }, 'junk'];
+    raw.days = {
+      '2026-11-16': { meals: { breakfast: [{ ref: 'x:1', amount: 1 }, { ref: 'r:abc', amount: '2' }, { ref: 'r:gone', amount: 1 }, 'junk'] } },
+      'not a date': { meals: { breakfast: [{ ref: 'r:abc', amount: 1 }] } },
+      '2026-11-17': { meals: { breakfast: [{ ref: 'r:gone', amount: 1 }] } },
+    };
     const clean = normalize(raw);
-    expect(clean.week[0].meals.breakfast).toHaveLength(1);
-    expect(clean.week[0].meals.breakfast[0].amount).toBe(2);
+    expect(Object.keys(clean.days)).toEqual(['2026-11-16']); // a bad date and a day left empty are dropped
+    expect(clean.days['2026-11-16'].meals.breakfast).toHaveLength(1);
+    expect(clean.days['2026-11-16'].meals.breakfast[0].amount).toBe(2);
+    expect(clean.days['2026-11-16'].suppsTaken).toEqual([]);
   });
 });
 
@@ -136,7 +160,7 @@ describe('typing numbers', () => {
 });
 
 describe('backup reminder', () => {
-  const plan = toPlan(v1);
+  const plan = toPlan(v1, NOW);
   const now = new Date('2026-11-21T12:00:00Z');
   it('shows when there has never been a backup', () => {
     expect(backupReminder(plan, now)).toBe(Infinity);
@@ -158,9 +182,9 @@ describe('backup reminder', () => {
 
 describe.runIf(real)('a real exported plan', () => {
   it('gives every day exactly the same totals as the old artifact', () => {
-    const plan = toPlan(real);
+    const plan = toPlan(real, NOW);
     real.week.forEach((d: any, k: number) => {
-      for (const nd of ALL_NUTRIENTS) expect(dayNut(plan, plan.week[k], nd.k)).toBeCloseTo(oldDay(real, d, nd.k), 6);
+      for (const nd of ALL_NUTRIENTS) expect(dayNut(plan, W(plan)[k], nd.k)).toBeCloseTo(oldDay(real, d, nd.k), 6);
     });
   });
 });

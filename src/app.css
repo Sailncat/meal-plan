@@ -258,3 +258,22 @@ textarea.field {
     animation: none !important;
   }
 }
+
+/* Printing (the shopping list): just the content. */
+@media print {
+  .top,
+  nav.bottom,
+  .no-print,
+  .toast,
+  [aria-label="Backup reminder"] {
+    display: none !important;
+  }
+  main,
+  main.with-nav {
+    max-width: none;
+    padding: 0;
+  }
+  .card {
+    border-color: #999;
+  }
+}

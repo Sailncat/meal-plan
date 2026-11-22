@@ -3,15 +3,17 @@
   import { dayNut, dayNutWhere, foodById, perServing, weekFoodIds, weekNut } from '../lib/calc';
   import { dailyCaps, dailyGoals, upperLimits, STANDARD_NAMES, type Person } from '../lib/references';
   import { ageOf, targetsInUse } from '../lib/targets';
-  import { DAYS_SHORT } from '../lib/types';
   import { fmtN } from '../lib/num';
-  import { store, undoable } from '../lib/store.svelte';
+  import { store, ui, undoable } from '../lib/store.svelte';
+  import { dayShort, weekDates } from '../lib/dates';
+  import WeekNav from '../components/WeekNav.svelte';
   import { blanksFilledBy, fillBlanks } from '../lib/foods';
   import type { Food, Nutrients } from '../lib/types';
   import FoodSearch from '../components/FoodSearch.svelte';
 
   const plan = $derived(store.plan!);
   const prof = $derived(plan.profile);
+  const dates = $derived(weekDates(ui.date, plan.settings.weekStart));
   const GROUPS = ['Macros', 'Vitamins', 'Minerals'] as const;
 
   // Goals fit the profile once it's complete; until then, a man of 25.
@@ -35,7 +37,7 @@
 
   // Foods in this week's plan with no values beyond calories and protein.
   const missing = $derived(
-    [...weekFoodIds(plan)]
+    [...weekFoodIds(plan, dates)]
       .map((id) => foodById(plan, id))
       .filter((f): f is Food => !!f && !Object.keys(f.nut).some((k) => k !== 'kcal' && k !== 'protein')),
   );
@@ -68,17 +70,20 @@
   const overs = $derived(
     Object.entries(limits)
       .map(([k, lim]) => {
-        const vals = plan.week.map((d) => (lim.supplementsOnly ? dayNutWhere(plan, d, k, (f) => f.supplement) : dayNut(plan, d, k)));
+        const vals = dates.map((date) => {
+          const d = plan.days[date];
+          return lim.supplementsOnly ? dayNutWhere(plan, d, k, (f) => f.supplement) : dayNut(plan, d, k);
+        });
         const days = vals.flatMap((v, i) => (v > lim.ul + 1e-9 ? [i] : []));
         return { k, lim, days, max: Math.max(...vals), def: NUTRIENTS.find((n) => n.k === k)! };
       })
       .filter((o) => o.days.length && o.def),
   );
   const overKeys = $derived(new Set(overs.map((o) => o.k)));
-  const dayList = (days: number[]) => (days.length === 7 ? 'every day' : days.map((i) => DAYS_SHORT[i]).join(', '));
+  const dayList = (days: number[]) => (days.length === 7 ? 'every day' : days.map((i) => dayShort(dates[i])).join(', '));
 
   function row(n: NutrientDef) {
-    const wk = weekNut(plan, n.k);
+    const wk = weekNut(plan, dates, n.k);
     const d = daily(n.k);
     const lo = d.lo != null ? d.lo * 7 : null;
     const hi = d.hi != null ? d.hi * 7 : null;
@@ -103,8 +108,9 @@
 </script>
 
 <h1 class="page-title">Nutrients</h1>
+<WeekNav />
 <p class="note">
-  Your week from the Plan tab, against {STANDARD_NAMES[prof.standard]} goals for {who}. Carbs and fat use your daily targets; salt, saturated
+  The week’s plan, against {STANDARD_NAMES[prof.standard]} goals for {who}. Carbs and fat use your daily targets; salt, saturated
   fat and sugars use WHO limits. Sugars counts all sugars, including the natural sugar in milk and fruit, so it reads higher than WHO's
   free-sugar limit would. Treat the totals as a good estimate.
 </p>
