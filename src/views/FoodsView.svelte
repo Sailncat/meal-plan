@@ -149,4 +149,8 @@
   .empty p {
     margin: 0 0 1rem;
   }
+  :global(:root[data-density='compact']) .list {
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+  }
 </style>

@@ -2,7 +2,7 @@
   import { NUTRIENTS, type NutrientDef } from '../lib/nutrients';
   import { dayNut, dayNutWhere, foodById, perServing, weekFoodIds, weekNut } from '../lib/calc';
   import { dailyCaps, dailyGoals, upperLimits, STANDARD_NAMES, type Person } from '../lib/references';
-  import { ageOf, targetsInUse } from '../lib/targets';
+  import { referencePerson } from '../lib/targets';
   import { fmtN } from '../lib/num';
   import { store, ui, undoable } from '../lib/store.svelte';
   import { dayShort, weekDates } from '../lib/dates';
@@ -17,14 +17,10 @@
   const GROUPS = ['Macros', 'Vitamins', 'Minerals'] as const;
 
   // Goals fit the profile once it's complete; until then, a man of 25.
-  const use = $derived(targetsInUse(plan));
-  const kcalMid = $derived((use.targets.kcal.low + use.targets.kcal.high) / 2);
-  const fitted = $derived(!!use.worked);
-  const person = $derived<Person>(
-    fitted
-      ? { sex: prof.sex!, age: ageOf(prof.birthYear)!, stage: prof.sex === 'female' ? prof.stage : 'none', kcal: kcalMid }
-      : { sex: 'male', age: 25, stage: 'none', kcal: kcalMid },
-  );
+  const ref = $derived(referencePerson(plan));
+  const use = $derived(ref.use);
+  const fitted = $derived(ref.fitted);
+  const person = $derived<Person>(ref.person);
   const goals = $derived(dailyGoals(prof.standard, person));
   const caps = $derived(dailyCaps(person));
   const limits = $derived(upperLimits(prof.standard, person));

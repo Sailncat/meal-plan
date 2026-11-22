@@ -435,4 +435,36 @@
     margin-top: 0.35rem;
     max-width: 18rem;
   }
+  :global(:root[data-density='compact']) .summary {
+    min-height: 2.75rem;
+    padding: 0.35rem 0.7rem;
+  }
+  /* Large text on a phone: the name gets the whole first row, the size goes under it. */
+  .ways {
+    container: ways / inline-size;
+  }
+  @container ways (max-width: 19rem) {
+    .way {
+      grid-template-columns: auto auto 4.5rem auto minmax(0, 1fr) auto;
+      grid-template-areas: 'one name name name name x' '. eq num u . .';
+    }
+    .way > .one {
+      grid-area: one;
+    }
+    .way > .field:not(.num) {
+      grid-area: name;
+    }
+    .way > .eq {
+      grid-area: eq;
+    }
+    .way > :global(.num) {
+      grid-area: num;
+    }
+    .way > .u {
+      grid-area: u;
+    }
+    .way > .x {
+      grid-area: x;
+    }
+  }
 </style>

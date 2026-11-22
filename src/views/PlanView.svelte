@@ -6,7 +6,7 @@
   import { fmt0, uid } from '../lib/num';
   import { E, EU, amountOf } from '../lib/display';
   import { measureOf } from '../lib/units';
-  import { targetsInUse } from '../lib/targets';
+  import { gaugeSpecs } from '../lib/gauges';
   import { addDays, dayTitle, rangeText, today as todayOf, weekDates } from '../lib/dates';
   import { applyTemplate, clearDates, copyWeek, ensureDay, saveTemplate, weekIsEmpty } from '../lib/weeks';
   import { store, ui, undoable, showToast } from '../lib/store.svelte';
@@ -26,10 +26,8 @@
 
   const kcalByDay = $derived(dates.map((d) => dayNut(plan, plan.days[d], 'kcal')));
   const proteinByDay = $derived(dates.map((d) => dayNut(plan, plan.days[d], 'protein')));
-  const t = $derived(targetsInUse(plan).targets);
+  const gauges = $derived(gaugeSpecs(plan));
   const selIndex = $derived(dates.indexOf(ui.date));
-  const carbs = $derived(dayNut(plan, day, 'carbs'));
-  const fat = $derived(dayNut(plan, day, 'fat'));
   const showEaten = $derived(canTick && anyEaten(day));
   const eaten = (key: string) => (showEaten ? dayNut(plan, day, key, 'eaten') : null);
   const cost = $derived(dayCost(plan, day));
@@ -187,10 +185,13 @@
   </h1>
 
   <div class="gauges">
-    <Gauge name={EU() === 'kJ' ? 'Energy' : 'Calories'} value={E(kcalByDay[selIndex])} unit={EU()} low={E(t.kcal.low)} high={E(t.kcal.high)} eaten={showEaten ? E(eaten('kcal')!) : null} />
-    <Gauge name="Protein" value={proteinByDay[selIndex]} unit="g" low={t.protein.low} high={t.protein.high} overOk eaten={eaten('protein')} />
-    <Gauge name="Carbs" value={carbs} unit="g" low={t.carbs.low} high={t.carbs.high} eaten={eaten('carbs')} />
-    <Gauge name="Fat" value={fat} unit="g" low={t.fat.low} high={t.fat.high} eaten={eaten('fat')} />
+    {#each gauges as g (g.key)}
+      {#if g.key === 'kcal'}
+        <Gauge name={EU() === 'kJ' ? 'Energy' : 'Calories'} value={E(kcalByDay[selIndex])} unit={EU()} low={E(g.low)} high={E(g.high)} eaten={showEaten ? E(eaten('kcal')!) : null} />
+      {:else}
+        <Gauge name={g.name} value={dayNut(plan, day, g.key)} unit="g" low={g.low} high={g.high} kind={g.kind} overOk={g.overOk} eaten={eaten(g.key)} />
+      {/if}
+    {/each}
   </div>
   {#if cost.known}
     <p class="cost note">
@@ -342,6 +343,14 @@
   .slots {
     display: grid;
     gap: 0.75rem;
+  }
+  :global(:root[data-density='compact']) .gauges {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.55rem 0.9rem;
+    margin-bottom: 0.6rem;
+  }
+  :global(:root[data-density='compact']) .slots {
+    gap: 0.45rem;
   }
   .supps header {
     display: flex;

@@ -7,6 +7,7 @@ import { DEFAULT_SETTINGS, measureOf } from './units';
 import { RECENT_MAX } from './foods';
 import { isCurrency } from './money';
 import { isDate, mondayIndex, today, weekDates } from './dates';
+import { cleanGauges, cleanLook } from './look';
 
 /** The old undated week ran Monday to Sunday. */
 const OLD_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -251,6 +252,8 @@ export function normalize(p: Record<string, any>, now = new Date()): Plan {
       country: typeof st.country === 'string' && /^(|[a-z]{2}:[a-z-]+)$/.test(st.country) ? st.country : DEFAULT_SETTINGS.country,
       weekStart,
       currency: isCurrency(st.currency) ? st.currency : DEFAULT_SETTINGS.currency,
+      ...cleanLook(st),
+      gauges: cleanGauges(st.gauges),
     },
     foods,
     recipes,

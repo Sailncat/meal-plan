@@ -58,10 +58,8 @@
     cursor: pointer;
     border-radius: 0.35rem;
   }
-  @media (prefers-color-scheme: dark) {
-    .undo {
-      color: var(--bar);
-    }
+  :global(:root[data-mode='dark']) .undo {
+    color: var(--bar);
   }
   .close {
     border: 0;

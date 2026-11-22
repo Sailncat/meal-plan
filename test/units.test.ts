@@ -6,6 +6,7 @@ import {
   amountText,
   baseAmount,
   convertAmount,
+  DEFAULT_SETTINGS,
   fmtQty,
   fromEnergy,
   fromShown,
@@ -123,7 +124,8 @@ describe('metric and imperial', () => {
 describe('loading plans with units', () => {
   it('gives older plans default settings and no measures', () => {
     const p = normalize({ app: 'meal-plan', foods: [{ id: 'a', name: 'Rice' }] });
-    expect(p.settings).toEqual({ system: 'metric', energy: 'kcal', country: 'en:poland', weekStart: 1, currency: 'PLN' });
+    expect(p.settings).toEqual(DEFAULT_SETTINGS);
+    expect(DEFAULT_SETTINGS).toMatchObject({ system: 'metric', energy: 'kcal', country: 'en:poland', weekStart: 1, currency: 'PLN' });
     expect(p.foods[0].measures).toEqual([]);
     expect(p.foods[0].countBy).toBeNull();
   });
@@ -142,10 +144,10 @@ describe('loading plans with units', () => {
 
   it('keeps settings through a save and reload', () => {
     const p = emptyPlan();
-    p.settings = { system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, currency: 'EUR' };
-    expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual({ system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, currency: 'EUR' });
+    p.settings = { ...DEFAULT_SETTINGS, system: 'imperial', energy: 'kJ', country: 'en:ireland', weekStart: 0, currency: 'EUR', theme: 'dark', palette: 'ocean', textSize: 'large', density: 'compact', gauges: ['kcal', 'salt'] };
+    expect(toPlan(JSON.parse(JSON.stringify(p))).settings).toEqual(p.settings);
     const bad = toPlan({ ...JSON.parse(JSON.stringify(p)), settings: { weekStart: 5, prepDays: [2], fridgeDays: 40, currency: 'XYZ' } }).settings;
-    expect(bad).toEqual({ system: 'metric', energy: 'kcal', country: 'en:poland', weekStart: 1, currency: 'PLN' }); // old cooking settings are dropped
+    expect(bad).toEqual(DEFAULT_SETTINGS); // old cooking settings are dropped
   });
 });
 

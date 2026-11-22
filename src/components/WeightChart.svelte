@@ -94,14 +94,12 @@
   circle.last {
     fill: var(--bar);
   }
-  @media (prefers-color-scheme: dark) {
-    .line,
-    circle {
-      stroke: var(--bar-ink);
-    }
-    circle.last {
-      fill: var(--bar-ink);
-    }
+  :global(:root[data-mode='dark']) .line,
+  :global(:root[data-mode='dark']) circle {
+    stroke: var(--bar-ink);
+  }
+  :global(:root[data-mode='dark']) circle.last {
+    fill: var(--bar-ink);
   }
   .empty {
     margin: 0;

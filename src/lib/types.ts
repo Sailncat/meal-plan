@@ -1,5 +1,7 @@
 // The whole plan is one document, saved on the device and in backup files.
 
+import type { Density, GaugeKey, Palette, TextSize, Theme } from './look';
+
 /** Nutrient values for the food's `per` amount, keyed by nutrient id (see nutrients.ts). */
 export type Nutrients = Record<string, number>;
 
@@ -179,6 +181,13 @@ export interface Settings {
   weekStart: 0 | 1;
   /** ISO currency code for prices, like "PLN". */
   currency: string;
+  /** Light, dark, or following the device. */
+  theme: Theme;
+  palette: Palette;
+  textSize: TextSize;
+  density: Density;
+  /** The 1 to 4 nutrients with a gauge on the day screen; the meal cards show the same. */
+  gauges: GaugeKey[];
 }
 
 export interface Plan {

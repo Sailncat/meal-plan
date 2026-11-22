@@ -3,6 +3,7 @@
 
 import type { Food, Measure, Settings } from './types';
 import { num } from './num';
+import { DEFAULT_GAUGES, DEFAULT_LOOK } from './look';
 
 export const G_PER_OZ = 28.349523125;
 /** US fluid ounce. */
@@ -32,6 +33,8 @@ export const DEFAULT_SETTINGS: Settings = {
   country: 'en:poland',
   weekStart: 1,
   currency: 'PLN',
+  ...DEFAULT_LOOK,
+  gauges: [...DEFAULT_GAUGES],
 };
 
 /** The food's own measures, plus tsp, tbsp and the system's cup for anything measured in ml. */

@@ -558,4 +558,33 @@
   .foot {
     padding: 0.6rem 0.75rem 0.75rem;
   }
+  :global(:root[data-density='compact']) .summary {
+    min-height: 2.75rem;
+    padding: 0.35rem 0.7rem;
+  }
+  /* Large text on a phone: the amount gets its own row, with the numbers under it. */
+  .lines {
+    container: lines / inline-size;
+  }
+  @container lines (max-width: 20rem) {
+    .nums {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: 'amt amt x' 'k p .';
+      row-gap: 0.15rem;
+    }
+    .nums > :first-child {
+      grid-area: amt;
+    }
+    .nums > .mac:nth-child(2) {
+      grid-area: k;
+      text-align: left;
+    }
+    .nums > .mac:nth-child(3) {
+      grid-area: p;
+      text-align: left;
+    }
+    .nums > .x {
+      grid-area: x;
+    }
+  }
 </style>

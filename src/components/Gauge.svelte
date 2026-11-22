@@ -1,6 +1,7 @@
 <script lang="ts">
   import { bandStatus } from '../lib/calc';
-  import { fmt0 } from '../lib/num';
+  import { fmt0, fmt1 } from '../lib/num';
+  import type { GaugeKind } from '../lib/gauges';
 
   interface Props {
     name: string;
@@ -8,42 +9,55 @@
     unit: string;
     low: number;
     high: number;
+    /** range: land between low and high. min: reach low, more is fine. max: stay under high. */
+    kind?: GaugeKind;
     /** Going over the top of the band is fine (protein), so it isn't shown as a warning. */
     overOk?: boolean;
     /** How much of it was ticked off as eaten; shown as a second, solid bar inside the planned one. */
     eaten?: number | null;
   }
-  let { name, value, unit, low, high, overOk = false, eaten = null }: Props = $props();
+  let { name, value, unit, low, high, kind = 'range', overOk = false, eaten = null }: Props = $props();
 
-  const max = $derived(Math.max(high * 1.3, value * 1.1, 1));
+  const top = $derived(kind === 'min' ? low : high);
+  const max = $derived(Math.max(top * 1.3, value * 1.1, 1));
   const pct = (x: number) => Math.max(0, Math.min(100, (x / max) * 100));
-  const raw = $derived(bandStatus(value, low, high));
+  // Small targets like salt (5 g) need a decimal to mean anything.
+  const fmt = (x: number) => (top < 15 ? fmt1(x) : fmt0(x));
+  const raw = $derived(
+    kind === 'min' ? (value < low ? 'under' : 'ok') : kind === 'max' ? (value > high ? 'over' : 'ok') : bandStatus(value, low, high),
+  );
   const status = $derived(raw === 'over' && overOk ? 'above' : raw);
-  const note = $derived(
-    status === 'under'
-      ? `${fmt0(low - value)} ${unit} below target`
+  const note = $derived.by(() => {
+    if (kind === 'min') return status === 'under' ? `${fmt(low - value)} ${unit} below goal` : 'Goal reached';
+    if (kind === 'max') return status === 'over' ? `${fmt(value - high)} ${unit} over the limit` : 'Under the limit';
+    return status === 'under'
+      ? `${fmt(low - value)} ${unit} below target`
       : status === 'over'
-        ? `${fmt0(value - high)} ${unit} over target`
+        ? `${fmt(value - high)} ${unit} over target`
         : status === 'above'
-          ? `${fmt0(value - high)} ${unit} above target`
-          : 'On target',
+          ? `${fmt(value - high)} ${unit} above target`
+          : 'On target';
+  });
+  const target = $derived(kind === 'min' ? `goal ${fmt(low)}+` : kind === 'max' ? `limit ${fmt(high)}` : `target ${fmt(low)}–${fmt(high)}`);
+  const band = $derived(
+    kind === 'min' ? { left: pct(low), width: 100 - pct(low) } : kind === 'max' ? { left: 0, width: pct(high) } : { left: pct(low), width: pct(high) - pct(low) },
   );
 </script>
 
 <div class="gauge">
   <div class="head">
     <span class="name">{name}</span>
-    <span class="value tabular">{fmt0(value)}<small>{unit}</small></span>
+    <span class="value tabular">{fmt(value)}<small>{unit}</small></span>
   </div>
-  <div class="track" role="img" aria-label="{name}: {fmt0(value)} {unit}, target {fmt0(low)} to {fmt0(high)}">
-    <div class="band" style:left="{pct(low)}%" style:width="{pct(high) - pct(low)}%"></div>
+  <div class="track" role="img" aria-label="{name}: {fmt(value)} {unit}, {target} {unit}">
+    <div class="band" class:open-end={kind === 'min'} class:open-start={kind === 'max'} style:left="{band.left}%" style:width="{band.width}%"></div>
     <div class="fill {status}" class:dim={eaten != null} style:width="{pct(value)}%"></div>
     {#if eaten != null}<div class="eaten" style:width="{pct(eaten)}%"></div>{/if}
   </div>
   <div class="foot">
-    {#if eaten != null}<span class="eaten-text tabular">{fmt0(eaten)} {unit} eaten</span> <span class="muted">·</span>{/if}
+    {#if eaten != null}<span class="eaten-text tabular">{fmt(eaten)} {unit} eaten</span> <span class="muted">·</span>{/if}
     <span class={status}>{note}</span>
-    <span class="muted">· target {fmt0(low)}–{fmt0(high)}</span>
+    <span class="muted">· {target}</span>
   </div>
 </div>
 
@@ -86,6 +100,12 @@
     background: var(--band);
     border-left: 2px solid var(--band-edge);
     border-right: 2px solid var(--band-edge);
+  }
+  .band.open-end {
+    border-right: 0;
+  }
+  .band.open-start {
+    border-left: 0;
   }
   .fill {
     position: absolute;
@@ -130,5 +150,15 @@
   }
   .foot .ok {
     color: var(--ok);
+  }
+  :global(:root[data-density='compact']) .value {
+    font-size: 1.4rem;
+  }
+  :global(:root[data-density='compact']) .track {
+    height: 0.65rem;
+    margin: 0.25rem 0 0.2rem;
+  }
+  :global(:root[data-density='compact']) .foot {
+    font-size: 0.8rem;
   }
 </style>

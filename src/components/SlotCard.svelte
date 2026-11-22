@@ -3,7 +3,8 @@
   import { entriesNut, entryNut, entryTarget } from '../lib/calc';
   import { entryCost } from '../lib/costs';
   import { money } from '../lib/money';
-  import { fmt0 } from '../lib/num';
+  import { fmt0, fmt1 } from '../lib/num';
+  import { cleanGauges, gaugeShort, type GaugeKey } from '../lib/look';
   import { E, EU } from '../lib/display';
   import { store, undoable } from '../lib/store.svelte';
   import NumInput from './NumInput.svelte';
@@ -23,8 +24,16 @@
 
   const plan = $derived(store.plan!);
   const entries = $derived(day?.meals[slot.id] ?? []);
-  const kcal = $derived(entriesNut(plan, entries, 'kcal'));
-  const protein = $derived(entriesNut(plan, entries, 'protein'));
+  // The same nutrients as the gauges at the top of the day screen.
+  const keys = $derived(cleanGauges(plan.settings.gauges));
+  const shown = (value: (k: GaugeKey) => number) =>
+    keys
+      .map((k) => {
+        const v = value(k);
+        if (k === 'kcal') return `${fmt0(E(v))} ${EU()}`;
+        return `${k === 'salt' ? fmt1(v) : fmt0(v)} g ${gaugeShort(k)}`;
+      })
+      .join(' · ');
   const currency = $derived(plan.settings.currency);
 
   function nameOf(e: Entry) {
@@ -51,7 +60,7 @@
   <header>
     <h2 id="slot-{slot.id}">{slot.name || 'Unnamed meal'}</h2>
     {#if entries.some((e) => !e.extra)}
-      <span class="sum tabular">{fmt0(E(kcal))} {EU()} · {fmt0(protein)} g protein</span>
+      <span class="sum tabular">{shown((k) => entriesNut(plan, entries, k))}</span>
     {/if}
   </header>
 
@@ -83,7 +92,7 @@
             Swapped for {swapFor(e) ? nameOf(swapFor(e)!) : 'something else'}
           {:else}
             {#if e.extra}Instead of {nameOf(byId(e.swapOf) ?? e)} ·{/if}
-            {fmt0(E(entryNut(plan, e, 'kcal')))} {EU()} · {fmt0(entryNut(plan, e, 'protein'))} g protein{#if cost.known} · {cost.partial ? '≥ ' : ''}{money(cost.total, currency)}{/if}
+            {shown((k) => entryNut(plan, e, k))}{#if cost.known} · {cost.partial ? '≥ ' : ''}{money(cost.total, currency)}{/if}
           {/if}
         </small>
       </div>
@@ -125,6 +134,7 @@
 <style>
   .slot {
     padding: 0.2rem 0 0.35rem;
+    container: slot / inline-size;
   }
   header {
     display: flex;
@@ -242,6 +252,21 @@
   .swap {
     color: var(--muted);
   }
+  :global(:root[data-density='compact']) header {
+    padding: 0.35rem 0.75rem 0.2rem;
+  }
+  :global(:root[data-density='compact']) .entry {
+    gap: 0.4rem;
+    padding: 0.25rem 0.3rem 0.25rem 0.75rem;
+  }
+  :global(:root[data-density='compact']) .entry.tick {
+    padding-left: 0.4rem;
+  }
+  :global(:root[data-density='compact']) .check,
+  :global(:root[data-density='compact']) .check-gap {
+    width: 1.95rem;
+    height: 1.95rem;
+  }
   .add {
     display: block;
     width: calc(100% - 1rem);
@@ -278,5 +303,33 @@
     .what small {
       grid-area: mac;
     }
+  }
+  /* Large text on a phone: the numbers get their own row, and the amount goes under them. */
+  @container slot (max-width: 21.5rem) {
+    .entry {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'name acts' 'mac mac' 'amt amt';
+      row-gap: 0.2rem;
+    }
+    .entry.tick {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: 'check name acts' 'check mac mac' 'check amt amt';
+    }
+    .what {
+      display: contents;
+    }
+    .name {
+      grid-area: name;
+    }
+    .what small {
+      grid-area: mac;
+    }
+    .amt {
+      justify-self: start;
+    }
+  }
+  :global(:root[data-density='compact']) .add {
+    min-height: 2.1rem;
+    margin: 0.2rem 0.5rem 0.1rem;
   }
 </style>

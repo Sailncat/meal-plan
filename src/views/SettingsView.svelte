@@ -6,6 +6,8 @@
   import { CURRENCIES } from '../lib/money';
   import { allDays } from '../lib/calc';
   import { showToast, store, undoable } from '../lib/store.svelte';
+  import { GAUGE_KEYS, GAUGE_NAMES, MAX_GAUGES, PALETTES, TEXT_SIZES, cleanGauges, isDark, type GaugeKey } from '../lib/look';
+  import { EU } from '../lib/display';
 
   const plan = $derived(store.plan!);
   let fileInput: HTMLInputElement | undefined = $state();
@@ -15,6 +17,21 @@
       ? new Date(plan.meta.lastBackup).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
       : null,
   );
+
+  // ---------- look ----------
+  // Swatches show the colours of the mode the app is in now.
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const darkNow = $derived(isDark(plan.settings.theme, systemDark));
+
+  // ---------- day screen gauges ----------
+  const chosen = $derived(cleanGauges(plan.settings.gauges));
+  function toggleGauge(k: GaugeKey) {
+    const on = chosen.includes(k);
+    if (on && chosen.length === 1) return;
+    if (!on && chosen.length >= MAX_GAUGES) return;
+    plan.settings.gauges = on ? chosen.filter((x) => x !== k) : GAUGE_KEYS.filter((x) => x === k || chosen.includes(x));
+  }
+  const gaugeName = (k: GaugeKey) => (k === 'kcal' && EU() === 'kJ' ? 'Energy' : GAUGE_NAMES[k]);
 
   // ---------- meals ----------
   function addSlot() {
@@ -88,6 +105,76 @@
     {/each}
   </ul>
   <button class="btn small" onclick={addSlot}>+ Add a meal</button>
+</div>
+
+<h2 class="bar">Day screen</h2>
+<div class="panel pad">
+  <p class="note top">The gauges at the top of the day screen, up to {MAX_GAUGES}. Meal cards show the same numbers.</p>
+  <div class="gauge-picks" role="group" aria-label="Gauges on the day screen">
+    {#each GAUGE_KEYS as k (k)}
+      {@const on = chosen.includes(k)}
+      <label class="gauge-pick" class:on>
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={(on && chosen.length === 1) || (!on && chosen.length >= MAX_GAUGES)}
+          onchange={() => toggleGauge(k)}
+        />
+        {gaugeName(k)}
+      </label>
+    {/each}
+  </div>
+  <p class="note">
+    {#if chosen.length >= MAX_GAUGES}All {MAX_GAUGES} in use: untick one to pick another.{:else if chosen.length === 1}At least one gauge stays on.{:else}{chosen.length} of {MAX_GAUGES} in use.{/if}
+    Fibre has a goal to reach; sugars, salt and saturated fat have a limit to stay under.
+  </p>
+</div>
+
+<h2 class="bar">Look</h2>
+<div class="panel pad">
+  <div class="unit-row">
+    <span class="label">Theme</span>
+    <div class="seg" role="radiogroup" aria-label="Theme">
+      <button role="radio" aria-checked={plan.settings.theme === 'light'} onclick={() => (plan.settings.theme = 'light')}>Light</button>
+      <button role="radio" aria-checked={plan.settings.theme === 'dark'} onclick={() => (plan.settings.theme = 'dark')}>Dark</button>
+      <button role="radio" aria-checked={plan.settings.theme === 'auto'} onclick={() => (plan.settings.theme = 'auto')}>
+        Auto<small>like your device</small>
+      </button>
+    </div>
+  </div>
+  <div class="unit-row">
+    <span class="label">Colours</span>
+    <div class="swatches" role="radiogroup" aria-label="Colours">
+      {#each PALETTES as p (p.id)}
+        {@const pair = darkNow ? p.dark : p.light}
+        <button role="radio" aria-checked={plan.settings.palette === p.id} onclick={() => (plan.settings.palette = p.id)}>
+          <span class="sw" style:--a={pair[0]} style:--b={pair[1]} aria-hidden="true"></span>
+          {p.name}
+        </button>
+      {/each}
+    </div>
+  </div>
+  <div class="unit-row">
+    <span class="label">Text size</span>
+    <div class="seg" role="radiogroup" aria-label="Text size">
+      {#each TEXT_SIZES as t (t.id)}
+        <button role="radio" aria-checked={plan.settings.textSize === t.id} aria-label={t.name} onclick={() => (plan.settings.textSize = t.id)}>
+          <span class="aa" style:font-size="{t.scale * 1.1}rem" aria-hidden="true">Aa</span><small>{t.name}</small>
+        </button>
+      {/each}
+    </div>
+  </div>
+  <div class="unit-row">
+    <span class="label">Spacing</span>
+    <div class="seg" role="radiogroup" aria-label="Spacing">
+      <button role="radio" aria-checked={plan.settings.density === 'roomy'} onclick={() => (plan.settings.density = 'roomy')}>
+        Roomy<small>more space</small>
+      </button>
+      <button role="radio" aria-checked={plan.settings.density === 'compact'} onclick={() => (plan.settings.density = 'compact')}>
+        Compact<small>fits more on screen</small>
+      </button>
+    </div>
+  </div>
 </div>
 
 <h2 class="bar">Units</h2>
@@ -258,6 +345,7 @@
   }
   .unit-row {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.3rem;
     margin-bottom: 0.8rem;
   }
@@ -294,6 +382,71 @@
   .seg button[aria-checked='true'] small {
     color: inherit;
     opacity: 0.85;
+  }
+  .seg .aa {
+    font-family: var(--display);
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(3.6rem, 1fr));
+    gap: 0.35rem;
+    max-width: 26rem;
+  }
+  .swatches button {
+    display: grid;
+    justify-items: center;
+    gap: 0.3rem;
+    padding: 0.5rem 0.2rem 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    background: var(--surface);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .swatches button[aria-checked='true'] {
+    border: 2px solid var(--ink);
+    padding: calc(0.5rem - 1px) calc(0.2rem - 1px) calc(0.4rem - 1px);
+  }
+  .sw {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--a) 0 55%, var(--b) 55% 100%);
+    border: 1px solid var(--line);
+  }
+  .gauge-picks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+  }
+  .gauge-pick {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.6rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 0.45rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .gauge-pick.on {
+    background: var(--pick);
+    color: var(--pick-ink);
+    border-color: var(--band-edge);
+  }
+  .gauge-pick input {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--bar);
+  }
+  .gauge-pick:has(input:disabled:not(:checked)) {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
   .last {
     font-weight: 600;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { load, queueSave, store } from './lib/store.svelte';
+  import { applyLook } from './lib/look';
   import PlanView from './views/PlanView.svelte';
   import RecipesView from './views/RecipesView.svelte';
   import FoodsView from './views/FoodsView.svelte';
@@ -37,6 +38,20 @@
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
+  });
+
+  // The look follows the settings, and "Auto" follows the device switching between light and dark.
+  let systemDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
+  onMount(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (e: MediaQueryListEvent) => (systemDark = e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  });
+  $effect(() => {
+    const st = store.plan?.settings;
+    if (!st) return;
+    applyLook({ theme: st.theme, palette: st.palette, textSize: st.textSize, density: st.density }, systemDark);
   });
 
   // Save after every change.
@@ -210,10 +225,8 @@
   .bottom a[aria-current='page'] {
     color: var(--bar);
   }
-  @media (prefers-color-scheme: dark) {
-    .bottom a[aria-current='page'] {
-      color: var(--bar-ink);
-    }
+  :global(:root[data-mode='dark']) .bottom a[aria-current='page'] {
+    color: var(--bar-ink);
   }
   @media (min-width: 52rem) {
     .tabs {
@@ -225,5 +238,10 @@
     main.with-nav {
       padding-bottom: 4rem;
     }
+  }
+  :global(:root[data-density='compact']) main {
+    padding-top: 0.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 </style>

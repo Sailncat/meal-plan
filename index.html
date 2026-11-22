@@ -8,6 +8,22 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>Meal plan</title>
+    <script>
+      // Applies the saved look before the page is drawn, so it doesn't flash in the default colours.
+      // look.ts does the same once the plan loads, and keeps this copy up to date.
+      (function () {
+        var r = document.documentElement;
+        var l = {};
+        try {
+          l = JSON.parse(localStorage.getItem('meal-plan-look') || '{}') || {};
+        } catch (e) {}
+        var dark = l.theme === 'dark' || (l.theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        r.dataset.mode = dark ? 'dark' : 'light';
+        if (l.palette) r.dataset.palette = l.palette;
+        if (l.textSize) r.dataset.text = l.textSize;
+        if (l.density) r.dataset.density = l.density;
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -555,10 +555,8 @@
     padding-left: 0;
     color: var(--bar);
   }
-  @media (prefers-color-scheme: dark) {
-    .t-row > .btn {
-      color: var(--bar-ink);
-    }
+  :global(:root[data-mode='dark']) .t-row > .btn {
+    color: var(--bar-ink);
   }
   @media (max-width: 26rem) {
     .t-row {

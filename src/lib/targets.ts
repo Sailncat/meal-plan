@@ -8,6 +8,7 @@
 // Fat: 20–35% of energy (EFSA and US reference ranges). Carbs: the energy left over.
 
 import type { Activity, MacroKey, Plan, Profile, Range, Sex, Stage } from './types';
+import type { Person } from './references';
 
 export const ACTIVITIES: { id: Activity; factor: number; label: string; sub: string }[] = [
   { id: 'sedentary', factor: 1.2, label: 'Mostly sitting', sub: 'Desk job, little or no exercise' },
@@ -145,4 +146,19 @@ export function targetsInUse(plan: Plan, now = new Date()): InUse {
     }
   }
   return { targets, source, worked };
+}
+
+/**
+ * Who vitamin, mineral and fibre goals are worked out for: the user once the profile is complete,
+ * until then a man of 25. Energy-based limits use the middle of the calorie target.
+ */
+export function referencePerson(plan: Plan, now = new Date()): { person: Person; fitted: boolean; use: InUse } {
+  const use = targetsInUse(plan, now);
+  const kcal = (use.targets.kcal.low + use.targets.kcal.high) / 2;
+  const prof = plan.profile;
+  const fitted = !!use.worked;
+  const person: Person = fitted
+    ? { sex: prof.sex!, age: ageOf(prof.birthYear, now)!, stage: prof.sex === 'female' ? prof.stage : 'none', kcal }
+    : { sex: 'male', age: 25, stage: 'none', kcal };
+  return { person, fitted, use };
 }
