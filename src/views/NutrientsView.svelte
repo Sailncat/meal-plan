@@ -5,7 +5,10 @@
   import { ageOf, targetsInUse } from '../lib/targets';
   import { DAYS_SHORT } from '../lib/types';
   import { fmtN } from '../lib/num';
-  import { store } from '../lib/store.svelte';
+  import { store, undoable } from '../lib/store.svelte';
+  import { blanksFilledBy, fillBlanks } from '../lib/foods';
+  import type { Food, Nutrients } from '../lib/types';
+  import FoodSearch from '../components/FoodSearch.svelte';
 
   const plan = $derived(store.plan!);
   const prof = $derived(plan.profile);
@@ -34,9 +37,25 @@
   const missing = $derived(
     [...weekFoodIds(plan)]
       .map((id) => foodById(plan, id))
-      .filter((f) => f && !Object.keys(f.nut).some((k) => k !== 'kcal' && k !== 'protein'))
-      .map((f) => f!.name || 'Unnamed food'),
+      .filter((f): f is Food => !!f && !Object.keys(f.nut).some((k) => k !== 'kcal' && k !== 'protein')),
   );
+
+  // Looking a food's values up in the databases.
+  let lookingUp = $state<Food | null>(null);
+  let searchOpen = $state(false);
+  function lookUp(f: Food) {
+    lookingUp = f;
+    searchOpen = true;
+  }
+  function fill(nut: Nutrients, from: string) {
+    const f = lookingUp;
+    if (!f) return;
+    const n = blanksFilledBy(f, nut).length;
+    undoable(`Filled ${n} value${n === 1 ? '' : 's'} in ${f.name || 'this food'} from ${from}`, () => {
+      fillBlanks(f, nut);
+    });
+  }
+  const canLookUp = (f: Food) => f.unit === 'g' || f.unit === 'ml';
 
   /** A nutrient's daily goal: a band for carbs and fat, a maximum for salt, saturated fat and sugars, a minimum for the rest. */
   function daily(k: string): { lo: number | null; hi: number | null } {
@@ -110,7 +129,24 @@
 {/if}
 
 {#if missing.length}
-  <p class="missing">No vitamin or mineral values yet for {missing.join(', ')}, so they count as zero below. Fill them in on the Foods tab under “More nutrients”.</p>
+  <div class="missing">
+    <p>No vitamin or mineral values yet for these, so they count as zero below:</p>
+    <ul>
+      {#each missing as f (f.id)}
+        <li>
+          <span>{f.name || 'Unnamed food'}</span>
+          {#if canLookUp(f)}
+            <button class="btn small" onclick={() => lookUp(f)}>Look it up</button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+    <p class="small">Looking it up fills only the blanks from basic or packaged foods. You can also type them in on the Foods tab, under “More nutrients”.</p>
+  </div>
+{/if}
+
+{#if lookingUp}
+  <FoodSearch bind:open={searchOpen} mode="fill" title="Find missing values" query={lookingUp.name} fillFood={lookingUp} onfill={fill} />
 {/if}
 
 {#each GROUPS as g (g)}
@@ -188,8 +224,31 @@
     padding: 0.6rem 0.9rem;
     border: 1px solid var(--under);
     border-radius: 0.4rem;
-    color: var(--under);
     font-size: 0.9rem;
+  }
+  .missing p {
+    margin: 0;
+    color: var(--under);
+  }
+  .missing ul {
+    list-style: none;
+    margin: 0.4rem 0;
+    padding: 0;
+  }
+  .missing li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .missing li span {
+    font-weight: 600;
+  }
+  .missing .small {
+    color: var(--muted);
+    font-size: 0.85rem;
   }
   .nut {
     display: grid;
